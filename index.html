@@ -211,6 +211,25 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
 .suggest-item:hover,.suggest-item.active{background:var(--paper);}
 .suggest-ref{font-family:var(--mono);font-weight:700;color:var(--green-d);}
 .suggest-prod{color:#444;font-size:.8rem;margin-top:1px;}
+
+/* ── Modal édition date ── */
+.date-edit-modal{
+  display:none;position:fixed;inset:0;background:rgba(28,43,36,.55);
+  z-index:300;align-items:center;justify-content:center;padding:16px;
+}
+.date-edit-modal.open{display:flex;}
+.date-edit-box{
+  background:#fff;border:2px solid var(--ink);border-radius:12px;
+  box-shadow:6px 6px 0 var(--ink);width:100%;max-width:340px;padding:22px;
+}
+.date-edit-box h3{font-size:1rem;font-weight:800;margin-bottom:4px;}
+.date-edit-box .sub{font-size:.78rem;color:#6b6456;margin-bottom:16px;font-family:var(--mono);}
+.date-edit-box input[type=date]{
+  width:100%;padding:11px 12px;border:2px solid var(--line);border-radius:6px;
+  font-size:1rem;font-family:inherit;background:var(--paper);margin-bottom:14px;
+}
+.date-edit-box input[type=date]:focus{outline:none;border-color:var(--green);}
+.date-edit-footer{display:flex;gap:8px;justify-content:flex-end;}
 </style>
 </head>
 <body>
@@ -429,6 +448,20 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
         <button class="btn-green span2" id="btnCreateUser" style="padding:9px;">Créer l'utilisateur</button>
       </div>
       <div id="adminMsg" style="margin-top:8px;font-size:.8rem;min-height:16px;"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── Modal édition date ── -->
+<div class="date-edit-modal" id="dateEditModal">
+  <div class="date-edit-box">
+    <h3>Modifier la date</h3>
+    <div class="sub" id="dateEditCode"></div>
+    <input type="date" id="dateEditInput">
+    <div class="date-edit-footer">
+      <button class="btn-ghost btn-sm" id="dateEditCancel">Annuler</button>
+      <button class="btn-green" id="dateEditSave" style="padding:9px 18px;font-size:.9rem;">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -711,6 +744,33 @@ document.getElementById('homeLogout')?.addEventListener('click',doLogout);
   b.addEventListener('click',openAdmin);
 });
 
+
+// ── MODAL ÉDITION DATE ────────────────────────────────────────
+let dateEditId=null, dateEditTool=null;
+
+function openDateEdit(id, tool, code, currentDate){
+  dateEditId=id; dateEditTool=tool;
+  document.getElementById('dateEditCode').textContent=code;
+  document.getElementById('dateEditInput').value=currentDate||todayISO();
+  document.getElementById('dateEditModal').classList.add('open');
+  setTimeout(()=>document.getElementById('dateEditInput').focus(),100);
+}
+
+document.getElementById('dateEditCancel')?.addEventListener('click',()=>{
+  document.getElementById('dateEditModal').classList.remove('open');
+});
+document.getElementById('dateEditModal')?.addEventListener('click',e=>{
+  if(e.target===e.currentTarget) document.getElementById('dateEditModal').classList.remove('open');
+});
+document.getElementById('dateEditSave')?.addEventListener('click',async()=>{
+  const newDate=document.getElementById('dateEditInput').value;
+  if(!newDate||!dateEditId) return;
+  if(dateEditTool==='t1') await fb.t1Update(dateEditId,{date_reception:newDate});
+  else await fb.t2Update(dateEditId,{date_reception:newDate});
+  document.getElementById('dateEditModal').classList.remove('open');
+  showMsg(dateEditTool==='t1'?'t1Msg':'t2Msg','\u2713 Date mise \u00e0 jour.','ok');
+});
+
 // ══════════════════════════════════════════════════════════════
 // OUTIL 1 — RÉCEPTION COLIS CDISCOUNT
 // ══════════════════════════════════════════════════════════════
@@ -840,6 +900,11 @@ function t1Render(){
       +'<button class="btn-del" data-id="'+r.id+'">\u2715</button>'
       +'</div>';
   }).join('');
+  colEl.querySelectorAll('.entry-click').forEach(el=>{
+    el.addEventListener('click',()=>{
+      openDateEdit(el.dataset.id,'t1',el.dataset.code,el.dataset.date);
+    });
+  });
   colEl.querySelectorAll('.btn-del').forEach(btn=>{
     btn.addEventListener('click',async()=>{
       if(!confirm('Supprimer ce colis ?'))return;
@@ -1115,6 +1180,11 @@ function t2Render(){
       +'<div class="colis-meta2">'+dateFR(r.date_reception)+(r.etat?' \u00b7 '+r.etat:'')+' \u00b7 '+st+'</div>'
       +'</div><button class="btn-del" data-id="'+r.id+'">\u2715</button></div>';
   }).join('');
+  el.querySelectorAll('.entry-click').forEach(div=>{
+    div.addEventListener('click',()=>{
+      openDateEdit(div.dataset.id,'t2',div.dataset.code,div.dataset.date);
+    });
+  });
   el.querySelectorAll('.btn-del').forEach(btn=>{
     btn.addEventListener('click',async()=>{
       if(!confirm('Supprimer ce colis ?'))return;
@@ -1182,12 +1252,13 @@ document.getElementById('btnLogout')?.addEventListener('click',doLogout);
     t1Input.addEventListener('keydown',e=>{
       const now=Date.now(), delta=now-t1LastKey; t1LastKey=now;
       if(e.key==='Enter'){e.preventDefault();clearTimeout(t1ScanTimer);t1HandleCode(t1Input.value);return;}
-      t1IsScanner = delta < 60;
+      t1IsScanner = (delta>0 && delta<60);
     });
     t1Input.addEventListener('input',()=>{
       clearTimeout(t1ScanTimer);
-      if(t1IsScanner && t1Input.value.length>=3)
-        t1ScanTimer=setTimeout(()=>t1HandleCode(t1Input.value),400);
+      if(t1Input.value.length>=3){
+        if(t1IsScanner) t1ScanTimer=setTimeout(()=>t1HandleCode(t1Input.value),400);
+      }
     });
   }
   if(t2Input){
