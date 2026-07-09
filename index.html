@@ -892,12 +892,14 @@ function t1Render(){
   if(!recent.length){colEl.innerHTML='<div class="empty">Aucun colis scann\u00e9.</div>';return;}
   colEl.innerHTML=recent.map(r=>{
     const cls=r.exported?'entry done':'entry';
-    const sc=r.scanned_by?' \u00b7 '+r.scanned_by:'';
-    const st=r.exported?'<span style="color:var(--blue)">export\u00e9</span>':'<span style="color:var(--amber)">en attente</span>';
-    return '<div class="'+cls+'">'
-      +'<div><div class="code">'+r.code_barre+'</div>'
-      +'<div class="meta">'+dateFR(r.date_reception)+sc+' \u00b7 '+st+'</div></div>'
-      +'<button class="btn-del" data-id="'+r.id+'">\u2715</button>'
+    const sc=r.scanned_by?' · '+r.scanned_by:'';
+    const st=r.exported?'<span style="color:var(--blue)">exporté</span>':'<span style="color:var(--amber)">en attente</span>';
+    return '<div class="'+cls+'">'  
+      +'<div class="entry-click" style="flex:1;cursor:pointer;min-width:0;" data-id="'+r.id+'" data-code="'+r.code_barre+'" data-date="'+r.date_reception+'">'  
+      +'<div class="code">'+r.code_barre+'</div>'  
+      +'<div class="meta">'+dateFR(r.date_reception)+sc+' · '+st+'<span style="color:#bdb9aa;font-size:.68rem;margin-left:6px;">✏</span></div>'  
+      +'</div>'  
+      +'<button class="btn-del" data-id="'+r.id+'">✕</button>'  
       +'</div>';
   }).join('');
   colEl.querySelectorAll('.entry-click').forEach(el=>{
@@ -1171,14 +1173,16 @@ function t2Render(){
   const el=document.getElementById('t2ColisList'),recent=MEM.t2.slice(0,30);
   if(!recent.length){el.innerHTML='<div class="empty">Aucun colis enregistr\u00e9.</div>';return;}
   el.innerHTML=recent.map(r=>{
-    const thumb=r.photo?'<img class="colis-thumb" src="'+r.photo+'" alt="">':'<div class="colis-ph">\ud83d\udce6</div>';
     const cls=r.exported?'colis-item exported':'colis-item';
-    const st=r.exported?'<span style="color:var(--blue)">export\u00e9</span>':'<span style="color:var(--amber)">en attente</span>';
+    const thumb=r.photo?'<img class="colis-thumb" src="'+r.photo+'" alt="">':'<div class="colis-ph">📦</div>';
+    const st=r.exported?'<span style="color:var(--blue)">exporté</span>':'<span style="color:var(--amber)">en attente</span>';
     return '<div class="'+cls+'">'+thumb
-      +'<div class="colis-info"><div class="colis-code">'+r.code_barre+'</div>'
-      +'<div class="colis-prod">'+(r.produit||'\u2014')+' \u00b7 '+(r.marque||'')+'</div>'
-      +'<div class="colis-meta2">'+dateFR(r.date_reception)+(r.etat?' \u00b7 '+r.etat:'')+' \u00b7 '+st+'</div>'
-      +'</div><button class="btn-del" data-id="'+r.id+'">\u2715</button></div>';
+      +'<div class="colis-info entry-click" style="cursor:pointer;flex:1;min-width:0;" data-id="'+r.id+'" data-code="'+r.code_barre+'" data-date="'+r.date_reception+'">'  
+      +'<div class="colis-code">'+r.code_barre+'</div>'  
+      +'<div class="colis-prod">'+(r.produit||'—')+' · '+(r.marque||'')+'</div>'  
+      +'<div class="colis-meta2">'+dateFR(r.date_reception)+(r.etat?' · '+r.etat:'')+' · '+st+'<span style="color:#bdb9aa;font-size:.68rem;margin-left:6px;">✏</span></div>'  
+      +'</div>'  
+      +'<button class="btn-del" data-id="'+r.id+'">✕</button></div>';
   }).join('');
   el.querySelectorAll('.entry-click').forEach(div=>{
     div.addEventListener('click',()=>{
