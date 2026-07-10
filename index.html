@@ -453,12 +453,24 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
 </div>
 
 
-<!-- ── Modal édition date ── -->
+<!-- ── Modal édition colis ── -->
 <div class="date-edit-modal" id="dateEditModal">
   <div class="date-edit-box">
-    <h3>Modifier la date</h3>
+    <h3>Modifier le colis</h3>
     <div class="sub" id="dateEditCode"></div>
+    <label style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b6456;display:block;margin-bottom:5px;">Date de réception</label>
     <input type="date" id="dateEditInput">
+    <div id="dateEditCommentWrap" style="display:none;margin-top:12px;">
+      <label style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b6456;display:block;margin-bottom:5px;">Commentaire</label>
+      <select id="dateEditComment" style="width:100%;padding:10px 12px;border:2px solid var(--line);border-radius:6px;font-size:.92rem;font-family:inherit;background:var(--paper);margin-bottom:8px;">
+        <option value="">— aucun —</option>
+        <option value="Accessoire seul">Accessoire seul</option>
+        <option value="Colis vide">Colis vide</option>
+        <option value="Mauvais produit">Mauvais produit</option>
+        <option value="Autre">Autre</option>
+      </select>
+      <input type="text" id="dateEditCommentAutre" placeholder="Préciser..." style="display:none;width:100%;padding:10px 12px;border:2px solid var(--line);border-radius:6px;font-size:.92rem;font-family:inherit;background:var(--paper);">
+    </div>
     <div class="date-edit-footer">
       <button class="btn-ghost btn-sm" id="dateEditCancel">Annuler</button>
       <button class="btn-green" id="dateEditSave" style="padding:9px 18px;font-size:.9rem;">Enregistrer</button>
@@ -745,13 +757,26 @@ document.getElementById('homeLogout')?.addEventListener('click',doLogout);
 });
 
 
-// ── MODAL ÉDITION DATE ────────────────────────────────────────
+// ── MODAL ÉDITION COLIS ──────────────────────────────────────────────
 let dateEditId=null, dateEditTool=null;
 
-function openDateEdit(id, tool, code, currentDate){
+function openDateEdit(id, tool, code, currentDate, currentComment){
   dateEditId=id; dateEditTool=tool;
   document.getElementById('dateEditCode').textContent=code;
   document.getElementById('dateEditInput').value=currentDate||todayISO();
+  const commentWrap=document.getElementById('dateEditCommentWrap');
+  if(tool==='t1'){
+    commentWrap.style.display='block';
+    const sel=document.getElementById('dateEditComment');
+    const autre=document.getElementById('dateEditCommentAutre');
+    const known=['Accessoire seul','Colis vide','Mauvais produit'];
+    if(!currentComment){ sel.value=''; autre.style.display='none'; autre.value=''; }
+    else if(known.includes(currentComment)){ sel.value=currentComment; autre.style.display='none'; autre.value=''; }
+    else { sel.value='Autre'; autre.style.display='block'; autre.value=currentComment||''; }
+    sel.onchange=function(){ autre.style.display=this.value==='Autre'?'block':'none'; if(this.value!=='Autre') autre.value=''; };
+  } else {
+    commentWrap.style.display='none';
+  }
   document.getElementById('dateEditModal').classList.add('open');
   setTimeout(()=>document.getElementById('dateEditInput').focus(),100);
 }
@@ -765,10 +790,16 @@ document.getElementById('dateEditModal')?.addEventListener('click',e=>{
 document.getElementById('dateEditSave')?.addEventListener('click',async()=>{
   const newDate=document.getElementById('dateEditInput').value;
   if(!newDate||!dateEditId) return;
-  if(dateEditTool==='t1') await fb.t1Update(dateEditId,{date_reception:newDate});
-  else await fb.t2Update(dateEditId,{date_reception:newDate});
+  if(dateEditTool==='t1'){
+    const sel=document.getElementById('dateEditComment');
+    const autre=document.getElementById('dateEditCommentAutre');
+    const comment=sel.value==='Autre'?autre.value.trim():sel.value;
+    await fb.t1Update(dateEditId,{date_reception:newDate, commentaire:comment});
+  } else {
+    await fb.t2Update(dateEditId,{date_reception:newDate});
+  }
   document.getElementById('dateEditModal').classList.remove('open');
-  showMsg(dateEditTool==='t1'?'t1Msg':'t2Msg','\u2713 Date mise \u00e0 jour.','ok');
+  showMsg(dateEditTool==='t1'?'t1Msg':'t2Msg','✓ Mis à jour.','ok');
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -818,9 +849,10 @@ async function t1Save(code){
 function t1ToXLS(rows,filename){
   const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hdr='<Row><Cell ss:StyleID="h"><Data ss:Type="String">Date de r\u00e9ception</Data></Cell>'
-    +'<Cell ss:StyleID="h"><Data ss:Type="String">Code barre</Data></Cell></Row>';
-  const body=rows.map(r=>'<Row><Cell><Data ss:Type="String">'+esc(dateFR(r.date_reception))+'</Data></Cell>'
-    +'<Cell><Data ss:Type="String">'+esc(r.code_barre)+'</Data></Cell></Row>').join('');
+    +'<Cell ss:StyleID="h"><Data ss:Type="String">Code barre</Data></Cell>'
+    +'<Cell ss:StyleID="h"><Data ss:Type="String">Commentaire</Data></Cell></Row>'.map(r=>'<Row><Cell><Data ss:Type="String">'+esc(dateFR(r.date_reception))+'</Data></Cell>'
+    +'<Cell><Data ss:Type="String">'+esc(r.code_barre)+'</Data></Cell>'
+    +'<Cell><Data ss:Type="String">'+esc(r.commentaire||'')+'</Data></Cell></Row>').join('');
   const xml='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
     +'<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
     +'<Styles><Style ss:ID="h"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#E8F0EB" ss:Pattern="Solid"/></Style></Styles>'
@@ -895,16 +927,16 @@ function t1Render(){
     const sc=r.scanned_by?' · '+r.scanned_by:'';
     const st=r.exported?'<span style="color:var(--blue)">exporté</span>':'<span style="color:var(--amber)">en attente</span>';
     return '<div class="'+cls+'">'  
-      +'<div class="entry-click" style="flex:1;cursor:pointer;min-width:0;" data-id="'+r.id+'" data-code="'+r.code_barre+'" data-date="'+r.date_reception+'">'  
+      +'<div class="entry-click" style="flex:1;cursor:pointer;min-width:0;" data-id="'+r.id+'" data-code="'+r.code_barre+'" data-date="'+r.date_reception+'" data-comment="'+(r.commentaire||'')+'">'  
       +'<div class="code">'+r.code_barre+'</div>'  
-      +'<div class="meta">'+dateFR(r.date_reception)+sc+' · '+st+'<span style="color:#bdb9aa;font-size:.68rem;margin-left:6px;">✏</span></div>'  
+      +'<div class="meta">'+dateFR(r.date_reception)+sc+' · '+st+(r.commentaire?' · <span style="color:var(--blue);font-style:italic;">'+r.commentaire+'</span>':'')+'<span style="color:#bdb9aa;font-size:.68rem;margin-left:6px;">✏</span></div>'  
       +'</div>'  
       +'<button class="btn-del" data-id="'+r.id+'">✕</button>'  
       +'</div>';
   }).join('');
   colEl.querySelectorAll('.entry-click').forEach(el=>{
     el.addEventListener('click',()=>{
-      openDateEdit(el.dataset.id,'t1',el.dataset.code,el.dataset.date);
+      openDateEdit(el.dataset.id,'t1',el.dataset.code,el.dataset.date,el.dataset.comment||'');
     });
   });
   colEl.querySelectorAll('.btn-del').forEach(btn=>{
