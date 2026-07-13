@@ -950,16 +950,24 @@ async function t1Save(code){
 
 function t1ToXLS(rows,filename){
   if(!Array.isArray(rows)) rows=Object.values(rows||{});
+  if(!rows.length){showMsg('t1Msg','Aucune donnée à exporter.','err');return;}
   const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const hdr='<Row><Cell ss:StyleID="h"><Data ss:Type="String">Date de r\u00e9ception</Data></Cell>'
+  const hdr='<Row>'
+    +'<Cell ss:StyleID="h"><Data ss:Type="String">Date de réception</Data></Cell>'
     +'<Cell ss:StyleID="h"><Data ss:Type="String">Code barre</Data></Cell>'
-    +'<Cell ss:StyleID="h"><Data ss:Type="String">Commentaire</Data></Cell></Row>'.map(r=>'<Row><Cell><Data ss:Type="String">'+esc(dateFR(r.date_reception))+'</Data></Cell>'
-    +'<Cell><Data ss:Type="String">'+esc(r.code_barre)+'</Data></Cell>'
-    +'<Cell><Data ss:Type="String">'+esc(r.commentaire||'')+'</Data></Cell></Row>').join('');
+    +'<Cell ss:StyleID="h"><Data ss:Type="String">Commentaire</Data></Cell>'
+    +'</Row>';
+  const body=rows.map(r=>'<Row>'
+    +'<Cell><Data ss:Type="String">'+esc(dateFR(r.date_reception))+'</Data></Cell>'
+    +'<Cell><Data ss:Type="String">'+esc(r.code_barre||'')+'</Data></Cell>'
+    +'<Cell><Data ss:Type="String">'+esc(r.commentaire||'')+'</Data></Cell>'
+    +'</Row>').join('');
   const xml='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
     +'<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
     +'<Styles><Style ss:ID="h"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#E8F0EB" ss:Pattern="Solid"/></Style></Styles>'
-    +'<Worksheet ss:Name="R\u00e9ception"><Table><Column ss:Width="110"/><Column ss:Width="160"/>'+hdr+body+'</Table></Worksheet></Workbook>';
+    +'<Worksheet ss:Name="Réception"><Table>'
+    +'<Column ss:Width="110"/><Column ss:Width="160"/><Column ss:Width="130"/>'
+    +hdr+body+'</Table></Worksheet></Workbook>';
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'}));
   a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
