@@ -246,6 +246,18 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
 .result-item .rc{font-family:var(--mono);font-weight:700;font-size:.88rem;}
 .result-item .rm{font-size:.72rem;color:#6b6456;margin-top:1px;}
 @media(max-width:520px){.search-row{grid-template-columns:1fr;}}
+
+.hist-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);}
+.hist-item:last-child{border-bottom:none;}
+.hist-item input[type=checkbox]{width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--green);}
+.hist-item .hcode{font-family:var(--mono);font-weight:700;font-size:.88rem;}
+.hist-item .hmeta{font-size:.7rem;color:#6b6456;margin-top:1px;}
+.hist-item.exported .hcode{color:#9a937f;}
+.session-item{padding:12px 14px;border-bottom:1px solid var(--line);}
+.session-item:last-child{border-bottom:none;}
+.session-name{font-family:var(--mono);font-size:.83rem;font-weight:700;}
+.session-meta{font-size:.72rem;color:#6b6456;margin-top:2px;}
+.session-actions{display:flex;gap:6px;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -338,46 +350,13 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
     <h2>Export Excel</h2>
     <p>2×/semaine. "Nouveaux" exporte les colis non encore envoyés et les marque. L'export est sauvegardé dans l'historique.</p>
     <div class="btns">
-      <button class="btn-amber" style="padding:11px 16px;font-size:.88rem;" id="t1BtnNew">⬇ Nouveaux colis (depuis dernier export)</button>
-      <button class="btn-ghost-light" id="t1BtnAll">Tout l'historique</button>
+      <button class="btn-amber" style="padding:11px 16px;font-size:.88rem;" id="t1BtnNew">⬇ Nouveaux colis</button>
+      <button class="btn-ghost-light" id="t1BtnHistorique" style="padding:11px 16px;font-size:.88rem;">📋 Historique</button>
     </div>
   </div>
 
 
-  <!-- Recherche & Export avancé -->
-  <div class="search-card">
-    <h2>🔍 Recherche &amp; Export</h2>
-    <div class="search-row">
-      <div class="search-field">
-        <label>Du</label>
-        <input type="date" id="t1SearchFrom">
-      </div>
-      <div class="search-field">
-        <label>Au</label>
-        <input type="date" id="t1SearchTo">
-      </div>
-    </div>
-    <div class="search-field">
-      <label>Code-barre (partiel ok)</label>
-      <input type="text" id="t1SearchCode" placeholder="SAV… ou PAD… ou partiel" autocorrect="off" autocapitalize="characters" spellcheck="false">
-    </div>
-    <div class="search-actions">
-      <button class="btn-green btn-sm" id="t1BtnSearch" style="padding:9px 16px;font-size:.88rem;">Rechercher</button>
-      <button class="btn-amber" id="t1BtnSearchExport" style="padding:9px 16px;font-size:.88rem;display:none;">⬇ Exporter la sélection</button>
-      <button class="btn-ghost btn-sm" id="t1BtnSearchClear">Effacer</button>
-    </div>
-    <div id="t1SearchResultsHeader" style="display:none;" class="search-results-header">
-      <span><strong id="t1SearchCount">0</strong> résultat(s)</span>
-      <span id="t1SearchPeriod" style="font-style:italic;"></span>
-    </div>
-    <div id="t1SearchResults"></div>
-  </div>
 
-  <div class="section-hd">
-    <div class="lbl">Historique des exports</div>
-    <button class="btn-sm btn-ghost" id="t1BtnClearExports" style="font-size:.7rem;">Vider le log</button>
-  </div>
-  <div id="t1ExpList"></div>
 
   <div class="lbl" style="margin:18px 0 10px;">Colis scannés (40 derniers)</div>
   <div id="t1ColisList"></div>
@@ -458,10 +437,10 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
 
   <div class="exp-card">
     <h2>Export hebdomadaire</h2>
-    <p>ZIP contenant le fichier Excel + toutes les photos des colis non encore exportés.</p>
+    <p>Télécharge le fichier Excel + les photos des colis non encore exportés (fichiers séparés).</p>
     <div class="btns">
-      <button class="btn-amber" style="padding:11px 16px;font-size:.88rem;" id="t2BtnExport">⬇ Exporter (ZIP)</button>
-      <button class="btn-ghost-light" id="t2BtnAll">Tout l'historique</button>
+      <button class="btn-amber" style="padding:11px 16px;font-size:.88rem;" id="t2BtnExport">⬇ Nouveaux colis</button>
+      <button class="btn-ghost-light" id="t2BtnHistorique" style="padding:11px 16px;font-size:.88rem;">Historique</button>
     </div>
     <div id="t2ExportMsg" style="margin-top:8px;font-size:.8rem;color:#dce6df;display:none;"></div>
   </div>
@@ -520,6 +499,78 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
     <div class="date-edit-footer">
       <button class="btn-ghost btn-sm" id="dateEditCancel">Annuler</button>
       <button class="btn-green" id="dateEditSave" style="padding:9px 18px;font-size:.9rem;">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal Historique T1 -->
+<div class="modal-overlay" id="t1HistModal">
+  <div class="modal" style="max-width:640px;max-height:90vh;display:flex;flex-direction:column;padding:20px;">
+    <button class="modal-close" id="t1HistClose">&#x2715;</button>
+    <h2 style="margin-bottom:14px;">Historique des colis Cdiscount</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div><div class="lbl" style="margin-bottom:4px;">Du</div>
+        <input type="date" id="t1HistFrom" style="width:100%;padding:8px 10px;border:2px solid var(--line);border-radius:6px;font-family:inherit;background:var(--paper);"></div>
+      <div><div class="lbl" style="margin-bottom:4px;">Au</div>
+        <input type="date" id="t1HistTo" style="width:100%;padding:8px 10px;border:2px solid var(--line);border-radius:6px;font-family:inherit;background:var(--paper);"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input type="text" id="t1HistCode" placeholder="Code-barre (partiel ok)" autocorrect="off" autocapitalize="characters" spellcheck="false"
+        style="flex:1;padding:8px 12px;border:2px solid var(--line);border-radius:6px;font-family:inherit;background:var(--paper);">
+      <button class="btn-green btn-sm" id="t1HistFilter">Filtrer</button>
+      <button class="btn-ghost btn-sm" id="t1HistReset">Effacer</button>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:10px;flex-shrink:0;">
+      <button id="t1TabColis" style="padding:8px 16px;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;border:none;background:var(--green);color:#fff;border-radius:6px 6px 0 0;">Colis (<span id="t1TabColisCount">0</span>)</button>
+      <button id="t1TabSessions" style="padding:8px 16px;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;border:none;background:var(--paper);color:#6b6456;border-radius:6px 6px 0 0;margin-left:4px;">Sessions (<span id="t1TabSessionsCount">0</span>)</button>
+    </div>
+    <div id="t1TabColisPane" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
+        <div style="display:flex;gap:6px;">
+          <button class="btn-sm btn-ghost" id="t1HistCheckAll" style="font-size:.74rem;">Tout cocher</button>
+          <button class="btn-sm btn-ghost" id="t1HistUncheckAll" style="font-size:.74rem;">Tout d&eacute;cocher</button>
+        </div>
+        <span id="t1HistSelLabel" style="font-size:.78rem;color:#6b6456;font-weight:700;"></span>
+      </div>
+      <div id="t1HistList" style="flex:1;overflow-y:auto;border:1px solid var(--line);border-radius:6px;"></div>
+    </div>
+    <div id="t1TabSessionsPane" style="flex:1;overflow-y:auto;display:none;border:1px solid var(--line);border-radius:6px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:10px;border-top:1px solid var(--line);flex-shrink:0;">
+      <button class="btn-red-ghost btn-sm" id="t1BtnClearExports">Vider le log sessions</button>
+      <button class="btn-amber" id="t1HistExport" style="padding:10px 18px;font-size:.88rem;">&#x2B07; Exporter la s&eacute;lection</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal Historique T2 -->
+<div class="modal-overlay" id="t2HistModal">
+  <div class="modal" style="max-width:640px;max-height:90vh;display:flex;flex-direction:column;padding:20px;">
+    <button class="modal-close" id="t2HistClose">&#x2715;</button>
+    <h2 style="margin-bottom:14px;">Historique Black+Decker</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div><div class="lbl" style="margin-bottom:4px;">Du</div>
+        <input type="date" id="t2HistFrom" style="width:100%;padding:8px 10px;border:2px solid var(--line);border-radius:6px;font-family:inherit;background:var(--paper);"></div>
+      <div><div class="lbl" style="margin-bottom:4px;">Au</div>
+        <input type="date" id="t2HistTo" style="width:100%;padding:8px 10px;border:2px solid var(--line);border-radius:6px;font-family:inherit;background:var(--paper);"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input type="text" id="t2HistCode" placeholder="Code-barre ou r&eacute;f&eacute;rence (partiel ok)" autocorrect="off" autocapitalize="characters" spellcheck="false"
+        style="flex:1;padding:8px 12px;border:2px solid var(--line);border-radius:6px;font-family:inherit;background:var(--paper);">
+      <button class="btn-green btn-sm" id="t2HistFilter">Filtrer</button>
+      <button class="btn-ghost btn-sm" id="t2HistReset">Effacer</button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
+      <div style="display:flex;gap:6px;">
+        <button class="btn-sm btn-ghost" id="t2HistCheckAll" style="font-size:.74rem;">Tout cocher</button>
+        <button class="btn-sm btn-ghost" id="t2HistUncheckAll" style="font-size:.74rem;">Tout d&eacute;cocher</button>
+      </div>
+      <span id="t2HistSelLabel" style="font-size:.78rem;color:#6b6456;font-weight:700;"></span>
+    </div>
+    <div id="t2HistList" style="flex:1;overflow-y:auto;border:1px solid var(--line);border-radius:6px;min-height:0;"></div>
+    <div style="display:flex;justify-content:flex-end;padding-top:12px;margin-top:10px;border-top:1px solid var(--line);flex-shrink:0;">
+      <button class="btn-amber" id="t2HistExport" style="padding:10px 18px;font-size:.88rem;">&#x2B07; Exporter la s&eacute;lection</button>
     </div>
   </div>
 </div>
@@ -898,6 +949,7 @@ async function t1Save(code){
 }
 
 function t1ToXLS(rows,filename){
+  if(!Array.isArray(rows)) rows=Object.values(rows||{});
   const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hdr='<Row><Cell ss:StyleID="h"><Data ss:Type="String">Date de r\u00e9ception</Data></Cell>'
     +'<Cell ss:StyleID="h"><Data ss:Type="String">Code barre</Data></Cell>'
@@ -960,7 +1012,11 @@ function t1Render(){
     expEl.querySelectorAll('[data-dl]').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const exp=MEM.t1exp.find(e=>e.id===btn.dataset.dl);
-        if(exp){t1ToXLS(exp.snapshot,exp.filename);showMsg('t1Msg','\u2713 Re-t\u00e9l\u00e9charg\u00e9.','ok');}
+        if(exp){
+          const snap=Array.isArray(exp.snapshot)?exp.snapshot:Object.values(exp.snapshot||{});
+          t1ToXLS(snap,exp.filename);
+          showMsg('t1Msg','\u2713 Re-t\u00e9l\u00e9charg\u00e9.','ok');
+        }
       });
     });
     expEl.querySelectorAll('[data-delexp]').forEach(btn=>{
@@ -1087,80 +1143,133 @@ function setupT2Autocomplete(){
 }
 
 
-// ── RECHERCHE & EXPORT T1 ────────────────────────────────────
-let t1SearchData = [];
 
-function t1DoSearch(){
-  const from = document.getElementById('t1SearchFrom').value;
-  const to   = document.getElementById('t1SearchTo').value;
-  const code = document.getElementById('t1SearchCode').value.trim().toUpperCase();
 
-  let results = MEM.t1.slice();
-  if(from) results = results.filter(r => r.date_reception >= from);
-  if(to)   results = results.filter(r => r.date_reception <= to);
-  if(code) results = results.filter(r => (r.code_barre||'').toUpperCase().includes(code));
-
-  // Trier par date croissante
-  results.sort((a,b) => a.date_reception.localeCompare(b.date_reception));
-  t1SearchData = results;
-
-  const hdr = document.getElementById('t1SearchResultsHeader');
-  const cnt = document.getElementById('t1SearchCount');
-  const per = document.getElementById('t1SearchPeriod');
-  const res = document.getElementById('t1SearchResults');
-  const expBtn = document.getElementById('t1BtnSearchExport');
-
-  if(!from && !to && !code){
-    hdr.style.display='none'; res.innerHTML=''; expBtn.style.display='none'; return;
-  }
-
-  hdr.style.display='flex';
-  cnt.textContent = results.length;
-  per.textContent = (from||'…') + ' → ' + (to||'…') + (code ? ' · "' + code + '"' : '');
-  expBtn.style.display = results.length ? 'block' : 'none';
-
-  if(!results.length){
-    res.innerHTML='<div class="empty" style="padding:12px;">Aucun colis trouvé.</div>';
-    return;
-  }
-
-  res.innerHTML = results.slice(0,50).map(r =>
-    '<div class="result-item">'
-    + '<div><div class="rc">' + r.code_barre + '</div>'
-    + '<div class="rm">' + dateFR(r.date_reception)
-    + (r.commentaire ? ' · ' + r.commentaire : '')
-    + (r.exported ? ' · <span style="color:var(--blue)">exporté</span>' : ' · <span style="color:var(--amber)">en attente</span>')
-    + '</div></div></div>'
-  ).join('') + (results.length > 50 ? '<div style="font-size:.75rem;color:#9a937f;padding:8px 0;">+ ' + (results.length-50) + ' autres (export pour tout voir)</div>' : '');
+// ── MODAL HISTORIQUE T1
+let t1HistData=[];
+function t1HistOpen(){
+  document.getElementById('t1HistModal').classList.add('open');
+  t1HistApplyFilter();
+  t1HistRenderSessions();
 }
-
-document.getElementById('t1BtnSearch')?.addEventListener('click', t1DoSearch);
-document.getElementById('t1SearchCode')?.addEventListener('keydown', e => { if(e.key==='Enter') t1DoSearch(); });
-
-document.getElementById('t1BtnSearchClear')?.addEventListener('click', () => {
-  document.getElementById('t1SearchFrom').value = '';
-  document.getElementById('t1SearchTo').value = '';
-  document.getElementById('t1SearchCode').value = '';
-  document.getElementById('t1SearchResultsHeader').style.display = 'none';
-  document.getElementById('t1SearchResults').innerHTML = '';
-  document.getElementById('t1BtnSearchExport').style.display = 'none';
-  t1SearchData = [];
+function t1HistApplyFilter(){
+  const from=document.getElementById('t1HistFrom').value;
+  const to=document.getElementById('t1HistTo').value;
+  const code=document.getElementById('t1HistCode').value.trim().toUpperCase();
+  let data=MEM.t1.slice();
+  if(from) data=data.filter(r=>r.date_reception>=from);
+  if(to)   data=data.filter(r=>r.date_reception<=to);
+  if(code) data=data.filter(r=>(r.code_barre||'').toUpperCase().includes(code));
+  data.sort((a,b)=>b.date_reception.localeCompare(a.date_reception));
+  t1HistData=data;
+  t1HistRenderColis();
+  document.getElementById('t1TabColisCount').textContent=data.length;
+}
+function t1HistRenderColis(){
+  const el=document.getElementById('t1HistList');
+  if(!t1HistData.length){el.innerHTML='<div class="empty" style="padding:16px;">Aucun colis.</div>';t1UpdateSelCount();return;}
+  el.innerHTML=t1HistData.map(r=>{
+    const cls=r.exported?'hist-item exported':'hist-item';
+    const st=r.exported
+      ?'<span style="color:var(--blue)">exporté</span>'
+      :'<span style="color:var(--amber)">en attente</span>';
+    const com=r.commentaire?' · <em>'+r.commentaire+'</em>':'';
+    return '<div class="'+cls+'">'
+      +'<input type="checkbox" class="t1hcb" data-id="'+r.id+'">'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div class="hcode">'+r.code_barre+'</div>'
+      +'<div class="hmeta">'+dateFR(r.date_reception)+' · '+st+com+'</div>'
+      +'</div></div>';
+  }).join('');
+  el.querySelectorAll('.t1hcb').forEach(cb=>{cb.addEventListener('change',t1UpdateSelCount);});
+  t1UpdateSelCount();
+}
+function t1UpdateSelCount(){
+  const c=document.querySelectorAll('#t1HistList .t1hcb:checked').length;
+  const t=document.querySelectorAll('#t1HistList .t1hcb').length;
+  document.getElementById('t1HistSelLabel').textContent=c+' / '+t+' sélectionné(s)';
+}
+function t1HistRenderSessions(){
+  const el=document.getElementById('t1TabSessionsPane');
+  document.getElementById('t1TabSessionsCount').textContent=MEM.t1exp.length;
+  if(!MEM.t1exp.length){el.innerHTML='<div class="empty" style="padding:16px;">Aucune session.</div>';return;}
+  el.innerHTML=MEM.t1exp.map(e=>'<div class="session-item">'
+    +'<div class="session-name">'+e.filename+'</div>'
+    +'<div class="session-meta">'+e.date+' · '+e.count+' colis</div>'
+    +'<div class="session-actions">'
+    +'<button class="btn-blue btn-sm" data-dl="'+e.id+'">⬇ Re-télécharger</button>'
+    +'<button class="btn-red-ghost btn-sm" data-dels="'+e.id+'">Suppr.</button>'
+    +'</div></div>').join('');
+  el.querySelectorAll('[data-dl]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const exp=MEM.t1exp.find(e=>e.id===btn.dataset.dl);
+      if(exp){t1ToXLS(exp.snapshot,exp.filename);showMsg('t1Msg','✓ Re-téléchargé.','ok');}
+    });
+  });
+  el.querySelectorAll('[data-dels]').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      if(!confirm('Supprimer cette session ?'))return;
+      await fb.t1ExpDelete(btn.dataset.dels);t1HistRenderSessions();
+    });
+  });
+}
+document.getElementById('t1TabColis')?.addEventListener('click',()=>{
+  document.getElementById('t1TabColisPane').style.display='flex';
+  document.getElementById('t1TabSessionsPane').style.display='none';
+  document.getElementById('t1TabColis').style.background='var(--green)';
+  document.getElementById('t1TabColis').style.color='#fff';
+  document.getElementById('t1TabSessions').style.background='var(--paper)';
+  document.getElementById('t1TabSessions').style.color='#6b6456';
 });
-
-document.getElementById('t1BtnSearchExport')?.addEventListener('click', async () => {
-  if(!t1SearchData.length){ showMsg('t1Msg','Aucun résultat à exporter.','err'); return; }
-  const from = document.getElementById('t1SearchFrom').value;
-  const to   = document.getElementById('t1SearchTo').value;
-  const code = document.getElementById('t1SearchCode').value.trim();
-  const label = (from||'') + (from&&to?'_':'') + (to||'') + (code?'_'+code:'');
-  const fn = 'ENVIE ANJOU_' + (label || filenameDate()) + '.xls';
-  t1ToXLS(t1SearchData, fn);
-  // Sauvegarder dans l'historique
-  await fb.t1ExpInsert({id:uid(), filename:fn, date:nowFR(), count:t1SearchData.length,
-    snapshot: t1SearchData.map(r=>({date_reception:r.date_reception, code_barre:r.code_barre, commentaire:r.commentaire||''}))});
-  showMsg('t1Msg','✓ Export : ' + t1SearchData.length + ' colis.','ok');
+document.getElementById('t1TabSessions')?.addEventListener('click',()=>{
+  document.getElementById('t1TabColisPane').style.display='none';
+  document.getElementById('t1TabSessionsPane').style.display='block';
+  document.getElementById('t1TabSessions').style.background='var(--green)';
+  document.getElementById('t1TabSessions').style.color='#fff';
+  document.getElementById('t1TabColis').style.background='var(--paper)';
+  document.getElementById('t1TabColis').style.color='#6b6456';
+  t1HistRenderSessions();
 });
-
+document.getElementById('t1HistFilter')?.addEventListener('click',t1HistApplyFilter);
+document.getElementById('t1HistCode')?.addEventListener('keydown',e=>{if(e.key==='Enter')t1HistApplyFilter();});
+document.getElementById('t1HistReset')?.addEventListener('click',()=>{
+  ['t1HistFrom','t1HistTo','t1HistCode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  t1HistApplyFilter();
+});
+document.getElementById('t1HistCheckAll')?.addEventListener('click',()=>{
+  document.querySelectorAll('#t1HistList .t1hcb').forEach(cb=>cb.checked=true);
+  t1UpdateSelCount();
+});
+document.getElementById('t1HistUncheckAll')?.addEventListener('click',()=>{
+  document.querySelectorAll('#t1HistList .t1hcb').forEach(cb=>cb.checked=false);
+  t1UpdateSelCount();
+});
+document.getElementById('t1HistExport')?.addEventListener('click',async()=>{
+  const checked=[...document.querySelectorAll('#t1HistList .t1hcb:checked')];
+  if(!checked.length){showMsg('t1Msg','Aucun colis sélectionné.','err');return;}
+  const ids=new Set(checked.map(cb=>cb.dataset.id));
+  const sel=t1HistData.filter(r=>ids.has(r.id));
+  const from=document.getElementById('t1HistFrom').value;
+  const to=document.getElementById('t1HistTo').value;
+  const label=(from&&to)?from+'_'+to:filenameDate();
+  const fn='ENVIE ANJOU_'+label+'.xls';
+  t1ToXLS(sel,fn);
+  await fb.t1ExpInsert({id:uid(),filename:fn,date:nowFR(),count:sel.length,
+    snapshot:sel.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre,commentaire:r.commentaire||''}))});
+  document.getElementById('t1HistModal').classList.remove('open');
+  showMsg('t1Msg','✓ Export : '+sel.length+' colis.','ok');
+});
+document.getElementById('t1BtnClearExports')?.addEventListener('click',async()=>{
+  if(!confirm('Vider le log des sessions ?'))return;
+  await fb.t1ExpClear();t1HistRenderSessions();
+});
+document.getElementById('t1HistClose')?.addEventListener('click',()=>{
+  document.getElementById('t1HistModal').classList.remove('open');
+});
+document.getElementById('t1HistModal')?.addEventListener('click',e=>{
+  if(e.target===e.currentTarget)document.getElementById('t1HistModal').classList.remove('open');
+});
+document.getElementById('t1BtnHistorique')?.addEventListener('click',t1HistOpen);
 
 // ══════════════════════════════════════════════════════════════
 // OUTIL 2 — RÉCEPTION COLIS BLACK+DECKER
@@ -1341,49 +1450,81 @@ function t2BuildXML(rows){
     +hRow+body+'</Table></Worksheet></Workbook>';
 }
 
+async function t2DoExportFromSelection(rows){
+  if(!rows.length) return;
+  const year=new Date().getFullYear();
+  const xlsxName=year+'_REGISTRE ANGERS ENTREES CDISCOUNT.xlsx';
+  const headers=['DATE DE RECEPTION','N° SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N° DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
+  const dataRows=rows.map(r=>[
+    dateFR(r.date_reception),weekNum(r.date_reception),r.code_barre||'',
+    r.produit||'',r.ref_produit||'',r.marque||'',r.annee||'',r.serie||'',r.etat||'',r.commentaire||''
+  ]);
+  // 1. Télécharger le fichier Excel
+  const xlsxBlob=await buildXlsx('Registre Entrées',headers,dataRows);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(xlsxBlob);
+  a.download=xlsxName; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  // 2. Télécharger les photos une par une (avec délai)
+  const photos=rows.filter(r=>r.photo);
+  let photoCount=0;
+  for(const r of photos){
+    const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+    if(!m) continue;
+    await new Promise(res=>setTimeout(res,300));
+    const ext=m[1].split('/')[1].replace('jpeg','jpg');
+    const ph=document.createElement('a');
+    ph.href=r.photo;
+    ph.download=r.code_barre+'.'+ext;
+    ph.click();
+    photoCount++;
+  }
+  showMsg('t2Msg','✓ Export : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
+}
+
 async function t2DoExport(all){
   const rows=all
     ?MEM.t2.slice().sort((a,b)=>a.date_reception.localeCompare(b.date_reception))
     :MEM.t2.filter(r=>!r.exported).sort((a,b)=>a.date_reception.localeCompare(b.date_reception));
-  if(!rows.length){showMsg('t2Msg','Aucun colis \u00e0 exporter.','err');return;}
+  if(!rows.length){showMsg('t2Msg','Aucun colis à exporter.','err');return;}
   const expBtn=document.getElementById('t2BtnExport'),allBtn=document.getElementById('t2BtnAll');
   const expMsg=document.getElementById('t2ExportMsg');
-  expBtn.disabled=true;allBtn.disabled=true;expMsg.style.display='block';expMsg.textContent='Cr\u00e9ation du ZIP\u2026';
+  if(expBtn) expBtn.disabled=true;
+  if(expMsg){expMsg.style.display='block';expMsg.textContent='Génération Excel…';}
   try{
-    const outerZip=new JSZip();
-    const week=weekNum(todayISO());
     const year=new Date().getFullYear();
-    const zipName='SEM'+week+' ANGERS MISE EN LIGNE';
     const xlsxName=year+'_REGISTRE ANGERS ENTREES CDISCOUNT.xlsx';
-    // Générer le vrai .xlsx
     const headers=['DATE DE RECEPTION','N° SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N° DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
     const dataRows=rows.map(r=>[
-      dateFR(r.date_reception), weekNum(r.date_reception), r.code_barre||'',
-      r.produit||'', r.ref_produit||'', r.marque||'',
-      r.annee||'', r.serie||'', r.etat||'', r.commentaire||''
+      dateFR(r.date_reception),weekNum(r.date_reception),r.code_barre||'',
+      r.produit||'',r.ref_produit||'',r.marque||'',r.annee||'',r.serie||'',r.etat||'',r.commentaire||''
     ]);
-    const xlsxBlob=await buildXlsx('Registre Entrées', headers, dataRows);
-    outerZip.file(xlsxName, xlsxBlob);
-    let photoCount=0;
-    rows.forEach(r=>{
-      if(r.photo){
-        const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-        if(m){const ext=m[1].split('/')[1].replace('jpeg','jpg');outerZip.file(r.code_barre+'.'+ext,m[2],{base64:true});photoCount++;}
-      }
-    });
-    expMsg.textContent='Génération ZIP ('+rows.length+' colis, '+photoCount+' photos)…';
-    const blob=await outerZip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    const xlsxBlob=await buildXlsx('Registre Entrées',headers,dataRows);
     const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);a.download=zipName+'.zip';a.click();
+    a.href=URL.createObjectURL(xlsxBlob);a.download=xlsxName;a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    const photos=rows.filter(r=>r.photo);
+    let photoCount=0;
+    if(photos.length && expMsg) expMsg.textContent='Téléchargement photos ('+photos.length+')…';
+    for(const r of photos){
+      const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+      if(!m) continue;
+      await new Promise(res=>setTimeout(res,300));
+      const ext=m[1].split('/')[1].replace('jpeg','jpg');
+      const ph=document.createElement('a');
+      ph.href=r.photo;ph.download=r.code_barre+'.'+ext;ph.click();
+      photoCount++;
+    }
     if(!all){await Promise.all(rows.map(r=>fb.t2Update(r.id,{exported:true})));}
-    showMsg('t2Msg','\u2713 ZIP export\u00e9 : '+rows.length+' colis, '+photoCount+' photos.','ok');
-    expMsg.style.display='none';
+    showMsg('t2Msg','✓ Exporté : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
+    if(expMsg) expMsg.style.display='none';
   }catch(err){
-    showMsg('t2Msg','Erreur export : '+err.message,'err');expMsg.style.display='none';
-  }finally{expBtn.disabled=false;allBtn.disabled=false;}
+    showMsg('t2Msg','Erreur : '+err.message,'err');
+    if(expMsg) expMsg.style.display='none';
+  }finally{
+    if(expBtn) expBtn.disabled=false;
+  }
 }
-
 document.getElementById('t2BtnExport')?.addEventListener('click',()=>t2DoExport(false));
 document.getElementById('t2BtnAll')?.addEventListener('click',()=>t2DoExport(true));
 document.getElementById('t2BtnPurge')?.addEventListener('click',async()=>{
@@ -1423,6 +1564,84 @@ function t2Render(){
     });
   });
 }
+
+
+// ── MODAL HISTORIQUE T2
+let t2HistData=[];
+function t2HistOpen(){
+  document.getElementById('t2HistModal').classList.add('open');
+  t2HistApplyFilter();
+}
+function t2HistApplyFilter(){
+  const from=document.getElementById('t2HistFrom').value;
+  const to=document.getElementById('t2HistTo').value;
+  const code=document.getElementById('t2HistCode').value.trim().toUpperCase();
+  let data=MEM.t2.slice();
+  if(from) data=data.filter(r=>r.date_reception>=from);
+  if(to)   data=data.filter(r=>r.date_reception<=to);
+  if(code) data=data.filter(r=>
+    (r.code_barre||'').toUpperCase().includes(code)||
+    (r.ref_produit||'').toUpperCase().includes(code)||
+    (r.produit||'').toUpperCase().includes(code)
+  );
+  data.sort((a,b)=>b.date_reception.localeCompare(a.date_reception));
+  t2HistData=data;
+  t2HistRenderColis();
+}
+function t2HistRenderColis(){
+  const el=document.getElementById('t2HistList');
+  if(!t2HistData.length){el.innerHTML='<div class="empty" style="padding:16px;">Aucun colis.</div>';t2UpdateSelCount();return;}
+  el.innerHTML=t2HistData.map(r=>{
+    const st=r.exported
+      ?'<span style="color:var(--blue)">exporté</span>'
+      :'<span style="color:var(--amber)">en attente</span>';
+    const ph=r.photo?'<span style="color:var(--green);font-size:.7rem;">● photo</span>':'<span style="color:#bdb9aa;font-size:.7rem;">○ sans photo</span>';
+    const cls=r.exported?'hist-item exported':'hist-item';
+    return '<div class="'+cls+'">'
+      +'<input type="checkbox" class="t2hcb" data-id="'+r.id+'">'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div class="hcode">'+r.code_barre+'</div>'
+      +'<div class="hmeta">'+(r.produit||'—')+' · '+(r.marque||'')
+      +' · '+dateFR(r.date_reception)+' · '+st+' · '+ph+'</div>'
+      +'</div></div>';
+  }).join('');
+  el.querySelectorAll('.t2hcb').forEach(cb=>{cb.addEventListener('change',t2UpdateSelCount);});
+  t2UpdateSelCount();
+}
+function t2UpdateSelCount(){
+  const c=document.querySelectorAll('#t2HistList .t2hcb:checked').length;
+  const t=document.querySelectorAll('#t2HistList .t2hcb').length;
+  document.getElementById('t2HistSelLabel').textContent=c+' / '+t+' sélectionné(s)';
+}
+document.getElementById('t2HistFilter')?.addEventListener('click',t2HistApplyFilter);
+document.getElementById('t2HistCode')?.addEventListener('keydown',e=>{if(e.key==='Enter')t2HistApplyFilter();});
+document.getElementById('t2HistReset')?.addEventListener('click',()=>{
+  ['t2HistFrom','t2HistTo','t2HistCode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  t2HistApplyFilter();
+});
+document.getElementById('t2HistCheckAll')?.addEventListener('click',()=>{
+  document.querySelectorAll('#t2HistList .t2hcb').forEach(cb=>cb.checked=true);
+  t2UpdateSelCount();
+});
+document.getElementById('t2HistUncheckAll')?.addEventListener('click',()=>{
+  document.querySelectorAll('#t2HistList .t2hcb').forEach(cb=>cb.checked=false);
+  t2UpdateSelCount();
+});
+document.getElementById('t2HistExport')?.addEventListener('click',()=>{
+  const checked=[...document.querySelectorAll('#t2HistList .t2hcb:checked')];
+  if(!checked.length){showMsg('t2Msg','Aucun colis sélectionné.','err');return;}
+  const ids=new Set(checked.map(cb=>cb.dataset.id));
+  const sel=t2HistData.filter(r=>ids.has(r.id));
+  document.getElementById('t2HistModal').classList.remove('open');
+  t2DoExportFromSelection(sel);
+});
+document.getElementById('t2HistClose')?.addEventListener('click',()=>{
+  document.getElementById('t2HistModal').classList.remove('open');
+});
+document.getElementById('t2HistModal')?.addEventListener('click',e=>{
+  if(e.target===e.currentTarget)document.getElementById('t2HistModal').classList.remove('open');
+});
+document.getElementById('t2BtnHistorique')?.addEventListener('click',t2HistOpen);
 
 // ══════════════════════════════════════════════════════════════
 // ADMIN
