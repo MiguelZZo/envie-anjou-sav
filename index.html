@@ -348,7 +348,7 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
 
   <div class="exp-card">
     <h2>Export Excel</h2>
-    <p>2×/semaine. "Nouveaux" exporte les colis non encore envoyés et les marque. L'export est sauvegardé dans l'historique.</p>
+    <p>"Nouveaux colis" exporte uniquement les colis jamais exportés (en attente) et les marque. Historique = recherche et re-téléchargement.</p>
     <div class="btns">
       <button class="btn-amber" style="padding:11px 16px;font-size:.88rem;" id="t1BtnNew">⬇ Nouveaux colis</button>
       <button class="btn-ghost-light" id="t1BtnHistorique" style="padding:11px 16px;font-size:.88rem;">📋 Historique</button>
@@ -358,7 +358,7 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
 
 
 
-  <div class="lbl" style="margin:18px 0 10px;">Colis scannés (40 derniers)</div>
+  <div class="lbl" style="margin:18px 0 10px;">Colis scannés (200 derniers)</div>
   <div id="t1ColisList"></div>
 
   <footer>Réception colis Cdiscount — ENVIE ANJOU</footer>
@@ -948,36 +948,24 @@ async function t1Save(code){
   beep(true);t1Pending=null;t1Input.value='';t1Input.focus();
 }
 
-function t1ToXLS(rows,filename){
+async function t1ToXLS(rows,filename){
   if(!Array.isArray(rows)) rows=Object.values(rows||{});
   if(!rows.length){showMsg('t1Msg','Aucune donnée à exporter.','err');return;}
-  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const hdr='<Row>'
-    +'<Cell ss:StyleID="h"><Data ss:Type="String">Date de réception</Data></Cell>'
-    +'<Cell ss:StyleID="h"><Data ss:Type="String">Code barre</Data></Cell>'
-    +'<Cell ss:StyleID="h"><Data ss:Type="String">Commentaire</Data></Cell>'
-    +'</Row>';
-  const body=rows.map(r=>'<Row>'
-    +'<Cell><Data ss:Type="String">'+esc(dateFR(r.date_reception))+'</Data></Cell>'
-    +'<Cell><Data ss:Type="String">'+esc(r.code_barre||'')+'</Data></Cell>'
-    +'<Cell><Data ss:Type="String">'+esc(r.commentaire||'')+'</Data></Cell>'
-    +'</Row>').join('');
-  const xml='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
-    +'<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
-    +'<Styles><Style ss:ID="h"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#E8F0EB" ss:Pattern="Solid"/></Style></Styles>'
-    +'<Worksheet ss:Name="Réception"><Table>'
-    +'<Column ss:Width="110"/><Column ss:Width="160"/><Column ss:Width="130"/>'
-    +hdr+body+'</Table></Worksheet></Workbook>';
+  const xlsxName=filename.replace(/\.xls$/i,'.xlsx');
+  const headers=['Date de réception','Code barre','Commentaire'];
+  const dataRows=rows.map(r=>[dateFR(r.date_reception),r.code_barre||'',r.commentaire||'']);
+  const blob=await buildXlsx('Réception',headers,dataRows);
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'}));
-  a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  a.href=URL.createObjectURL(blob);
+  a.download=xlsxName;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 async function t1DoExportNew(){
   const pending=MEM.t1.filter(r=>!r.exported).sort((a,b)=>a.date_reception.localeCompare(b.date_reception));
   if(!pending.length){showMsg('t1Msg','Aucun nouveau colis \u00e0 exporter.','err');return;}
-  const fn='ENVIE ANJOU_'+filenameDate()+'.xls';
-  t1ToXLS(pending,fn);
+  const fn='ENVIE ANJOU_'+filenameDate()+'.xlsx';
+  await t1ToXLS(pending,fn);
   const expEntry={id:uid(),filename:fn,date:nowFR(),count:pending.length,
     snapshot:pending.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre}))};
   await fb.t1ExpInsert(expEntry);
@@ -988,8 +976,8 @@ async function t1DoExportNew(){
 async function t1DoExportAll(){
   const rows=MEM.t1.slice().sort((a,b)=>a.date_reception.localeCompare(b.date_reception));
   if(!rows.length){showMsg('t1Msg','Aucun colis enregistr\u00e9.','err');return;}
-  const fn='ENVIE ANJOU_'+filenameDate()+'_historique.xls';
-  t1ToXLS(rows,fn);
+  const fn='ENVIE ANJOU_'+filenameDate()+'_historique.xlsx';
+  await t1ToXLS(rows,fn);
   await fb.t1ExpInsert({id:uid(),filename:fn,date:nowFR(),count:rows.length,
     snapshot:rows.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre}))});
   showMsg('t1Msg','\u2713 Export complet : '+rows.length+' colis.','ok');
@@ -1007,46 +995,21 @@ function t1Render(){
   document.getElementById('t1SToday').textContent=MEM.t1.filter(r=>r.date_reception===today).length;
   document.getElementById('t1SPending').textContent=MEM.t1.filter(r=>!r.exported).length;
   document.getElementById('t1STotal').textContent=MEM.t1.length;
-
-  const exps=MEM.t1exp,expEl=document.getElementById('t1ExpList');
-  if(!exps.length){expEl.innerHTML='<div class="empty" style="padding:14px;">Aucun export effectu\u00e9.</div>';}
-  else{
-    expEl.innerHTML=exps.map(e=>'<div class="exp-hist-item">'
-      +'<div><div class="fname">\ud83d\udcc4 '+e.filename+'</div><div class="fmeta">'+e.date+' \u00b7 '+e.count+' colis</div></div>'
-      +'<div class="actions">'
-      +'<button class="btn-blue btn-sm" data-dl="'+e.id+'">\u2b07</button>'
-      +'<button class="btn-del" data-delexp="'+e.id+'">\u2715</button>'
-      +'</div></div>').join('');
-    expEl.querySelectorAll('[data-dl]').forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        const exp=MEM.t1exp.find(e=>e.id===btn.dataset.dl);
-        if(exp){
-          const snap=Array.isArray(exp.snapshot)?exp.snapshot:Object.values(exp.snapshot||{});
-          t1ToXLS(snap,exp.filename);
-          showMsg('t1Msg','\u2713 Re-t\u00e9l\u00e9charg\u00e9.','ok');
-        }
-      });
-    });
-    expEl.querySelectorAll('[data-delexp]').forEach(btn=>{
-      btn.addEventListener('click',async()=>{
-        if(!confirm('Supprimer cet export du log ?'))return;
-        await fb.t1ExpDelete(btn.dataset.delexp);
-      });
-    });
-  }
-
-  const colEl=document.getElementById('t1ColisList'),recent=MEM.t1.slice(0,200);
-  if(!recent.length){colEl.innerHTML='<div class="empty">Aucun colis scann\u00e9.</div>';return;}
+  const colEl=document.getElementById('t1ColisList');
+  if(!colEl) return;
+  const recent=MEM.t1.slice(0,200);
+  if(!recent.length){colEl.innerHTML='<div class="empty">Aucun colis scanné.</div>';return;}
   colEl.innerHTML=recent.map(r=>{
     const cls=r.exported?'entry done':'entry';
     const sc=r.scanned_by?' · '+r.scanned_by:'';
     const st=r.exported?'<span style="color:var(--blue)">exporté</span>':'<span style="color:var(--amber)">en attente</span>';
-    return '<div class="'+cls+'">'  
-      +'<div class="entry-click" style="flex:1;cursor:pointer;min-width:0;" data-id="'+r.id+'" data-code="'+r.code_barre+'" data-date="'+r.date_reception+'" data-comment="'+(r.commentaire||'')+'">'  
-      +'<div class="code">'+r.code_barre+'</div>'  
-      +'<div class="meta">'+dateFR(r.date_reception)+sc+' · '+st+(r.commentaire?' · <span style="color:var(--blue);font-style:italic;">'+r.commentaire+'</span>':'')+'<span style="color:#bdb9aa;font-size:.68rem;margin-left:6px;">✏</span></div>'  
-      +'</div>'  
-      +'<button class="btn-del" data-id="'+r.id+'">✕</button>'  
+    const com=r.commentaire?' · <span style="color:var(--blue);font-style:italic;">'+r.commentaire+'</span>':'';
+    return '<div class="'+cls+'">'
+      +'<div class="entry-click" style="flex:1;cursor:pointer;min-width:0;" data-id="'+r.id+'" data-code="'+r.code_barre+'" data-date="'+r.date_reception+'" data-comment="'+(r.commentaire||'')+'">'
+      +'<div class="code">'+r.code_barre+'</div>'
+      +'<div class="meta">'+dateFR(r.date_reception)+sc+' · '+st+com+'<span style="color:#bdb9aa;font-size:.68rem;margin-left:6px;">✏</span></div>'
+      +'</div>'
+      +'<button class="btn-del" data-id="'+r.id+'">✕</button>'
       +'</div>';
   }).join('');
   colEl.querySelectorAll('.entry-click').forEach(el=>{
@@ -1209,9 +1172,13 @@ function t1HistRenderSessions(){
     +'<button class="btn-red-ghost btn-sm" data-dels="'+e.id+'">Suppr.</button>'
     +'</div></div>').join('');
   el.querySelectorAll('[data-dl]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    btn.addEventListener('click',async()=>{
       const exp=MEM.t1exp.find(e=>e.id===btn.dataset.dl);
-      if(exp){t1ToXLS(exp.snapshot,exp.filename);showMsg('t1Msg','✓ Re-téléchargé.','ok');}
+      if(exp){
+        const snap=Array.isArray(exp.snapshot)?exp.snapshot:Object.values(exp.snapshot||{});
+        await t1ToXLS(snap,exp.filename);
+        showMsg('t1Msg','✓ Re-téléchargé.','ok');
+      }
     });
   });
   el.querySelectorAll('[data-dels]').forEach(btn=>{
@@ -1260,8 +1227,8 @@ document.getElementById('t1HistExport')?.addEventListener('click',async()=>{
   const from=document.getElementById('t1HistFrom').value;
   const to=document.getElementById('t1HistTo').value;
   const label=(from&&to)?from+'_'+to:filenameDate();
-  const fn='ENVIE ANJOU_'+label+'.xls';
-  t1ToXLS(sel,fn);
+  const fn='ENVIE ANJOU_'+label+'.xlsx';
+  await t1ToXLS(sel,fn);
   await fb.t1ExpInsert({id:uid(),filename:fn,date:nowFR(),count:sel.length,
     snapshot:sel.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre,commentaire:r.commentaire||''}))});
   document.getElementById('t1HistModal').classList.remove('open');
