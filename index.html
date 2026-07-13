@@ -561,15 +561,23 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
       <button class="btn-green btn-sm" id="t2HistFilter">Filtrer</button>
       <button class="btn-ghost btn-sm" id="t2HistReset">Effacer</button>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
-      <div style="display:flex;gap:6px;">
-        <button class="btn-sm btn-ghost" id="t2HistCheckAll" style="font-size:.74rem;">Tout cocher</button>
-        <button class="btn-sm btn-ghost" id="t2HistUncheckAll" style="font-size:.74rem;">Tout d&eacute;cocher</button>
-      </div>
-      <span id="t2HistSelLabel" style="font-size:.78rem;color:#6b6456;font-weight:700;"></span>
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:10px;flex-shrink:0;">
+      <button id="t2TabColis" style="padding:8px 16px;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;border:none;background:var(--green);color:#fff;border-radius:6px 6px 0 0;">Colis (<span id="t2TabColisCount">0</span>)</button>
+      <button id="t2TabSessions" style="padding:8px 16px;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;border:none;background:var(--paper);color:#6b6456;border-radius:6px 6px 0 0;margin-left:4px;">Sessions (<span id="t2TabSessionsCount">0</span>)</button>
     </div>
-    <div id="t2HistList" style="flex:1;overflow-y:auto;border:1px solid var(--line);border-radius:6px;min-height:0;"></div>
-    <div style="display:flex;justify-content:flex-end;padding-top:12px;margin-top:10px;border-top:1px solid var(--line);flex-shrink:0;">
+    <div id="t2TabColisPane" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
+        <div style="display:flex;gap:6px;">
+          <button class="btn-sm btn-ghost" id="t2HistCheckAll" style="font-size:.74rem;">Tout cocher</button>
+          <button class="btn-sm btn-ghost" id="t2HistUncheckAll" style="font-size:.74rem;">Tout d&eacute;cocher</button>
+        </div>
+        <span id="t2HistSelLabel" style="font-size:.78rem;color:#6b6456;font-weight:700;"></span>
+      </div>
+      <div id="t2HistList" style="flex:1;overflow-y:auto;border:1px solid var(--line);border-radius:6px;"></div>
+    </div>
+    <div id="t2TabSessionsPane" style="flex:1;overflow-y:auto;display:none;border:1px solid var(--line);border-radius:6px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:10px;border-top:1px solid var(--line);flex-shrink:0;">
+      <button class="btn-red-ghost btn-sm" id="t2BtnClearSessions">Vider le log sessions</button>
       <button class="btn-amber" id="t2HistExport" style="padding:10px 18px;font-size:.88rem;">&#x2B07; Exporter la s&eacute;lection</button>
     </div>
   </div>
@@ -599,7 +607,7 @@ const FB_CFG = {
 };
 
 let fbdb = null, fbOK = false;
-const MEM = { users:[], t1:[], t1exp:[], t2:[] };
+const MEM = { users:[], t1:[], t1exp:[], t2:[], t2exp:[] };
 
 function toArr(obj){
   if(!obj) return [];
@@ -670,6 +678,9 @@ function setupFBListeners(){
     updateHomeStats();
     cleanOldPhotos();
   });
+  fbdb.ref('pem/t2exp').on('value', snap=>{
+    MEM.t2exp=toArr(snap.val()).sort((a,b)=>(b._ts||0)-(a._ts||0));
+  });
 }
 
 
@@ -732,7 +743,11 @@ const fb = {
   async t2Insert(e){ await fbdb.ref('pem/t2/'+e.id).set(e); },
   async t2Update(id,d){ await fbdb.ref('pem/t2/'+id).update(d); },
   async t2Delete(id){ await fbdb.ref('pem/t2/'+id).remove(); },
-  async t2Purge(){ await Promise.all(MEM.t2.filter(r=>r.exported).map(r=>fbdb.ref('pem/t2/'+r.id).remove())); }
+  async t2Purge(){ await Promise.all(MEM.t2.filter(r=>r.exported).map(r=>fbdb.ref('pem/t2/'+r.id).remove())); },
+  // T2 sessions
+  async t2ExpInsert(e){ await fbdb.ref('pem/t2exp/'+e.id).set({...e,_ts:Date.now()}); },
+  async t2ExpDelete(id){ await fbdb.ref('pem/t2exp/'+id).remove(); },
+  async t2ExpClear(){ await fbdb.ref('pem/t2exp').remove(); }
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1454,6 +1469,10 @@ async function t2DoExportFromSelection(rows){
     ph.click();
     photoCount++;
   }
+  await fb.t2ExpInsert({id:uid(),filename:xlsxName,date:nowFR(),count:rows.length,
+    snapshot:rows.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre,
+      produit:r.produit||'',ref_produit:r.ref_produit||'',marque:r.marque||'',
+      annee:r.annee||'',serie:r.serie||'',etat:r.etat||'',commentaire:r.commentaire||''}))});
   showMsg('t2Msg','✓ Export : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
 }
 
@@ -1491,6 +1510,10 @@ async function t2DoExport(all){
       photoCount++;
     }
     if(!all){await Promise.all(rows.map(r=>fb.t2Update(r.id,{exported:true})));}
+    await fb.t2ExpInsert({id:uid(),filename:xlsxName,date:nowFR(),count:rows.length,
+      snapshot:rows.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre,
+        produit:r.produit||'',ref_produit:r.ref_produit||'',marque:r.marque||'',
+        annee:r.annee||'',serie:r.serie||'',etat:r.etat||'',commentaire:r.commentaire||''}))});
     showMsg('t2Msg','✓ Exporté : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
     if(expMsg) expMsg.style.display='none';
   }catch(err){
@@ -1546,6 +1569,8 @@ let t2HistData=[];
 function t2HistOpen(){
   document.getElementById('t2HistModal').classList.add('open');
   t2HistApplyFilter();
+  document.getElementById('t2TabColisCount').textContent=MEM.t2.length;
+  document.getElementById('t2TabSessionsCount').textContent=MEM.t2exp.length;
 }
 function t2HistApplyFilter(){
   const from=document.getElementById('t2HistFrom').value;
@@ -1617,6 +1642,75 @@ document.getElementById('t2HistModal')?.addEventListener('click',e=>{
   if(e.target===e.currentTarget)document.getElementById('t2HistModal').classList.remove('open');
 });
 document.getElementById('t2BtnHistorique')?.addEventListener('click',t2HistOpen);
+
+
+// ── MODAL T2 : ONGLETS & SESSIONS
+document.getElementById('t2TabColis')?.addEventListener('click',()=>{
+  document.getElementById('t2TabColisPane').style.display='flex';
+  document.getElementById('t2TabSessionsPane').style.display='none';
+  document.getElementById('t2TabColis').style.background='var(--green)';
+  document.getElementById('t2TabColis').style.color='#fff';
+  document.getElementById('t2TabSessions').style.background='var(--paper)';
+  document.getElementById('t2TabSessions').style.color='#6b6456';
+});
+document.getElementById('t2TabSessions')?.addEventListener('click',()=>{
+  document.getElementById('t2TabColisPane').style.display='none';
+  document.getElementById('t2TabSessionsPane').style.display='block';
+  document.getElementById('t2TabSessions').style.background='var(--green)';
+  document.getElementById('t2TabSessions').style.color='#fff';
+  document.getElementById('t2TabColis').style.background='var(--paper)';
+  document.getElementById('t2TabColis').style.color='#6b6456';
+  t2HistRenderSessions();
+});
+function t2HistRenderSessions(){
+  const el=document.getElementById('t2TabSessionsPane');
+  document.getElementById('t2TabSessionsCount').textContent=MEM.t2exp.length;
+  if(!MEM.t2exp.length){el.innerHTML='<div class="empty" style="padding:16px;">Aucune session d\'export.</div>';return;}
+  el.innerHTML=MEM.t2exp.map(e=>'<div class="session-item">'
+    +'<div class="session-name">'+e.filename+'</div>'
+    +'<div class="session-meta">'+e.date+' · '+e.count+' colis</div>'
+    +'<div class="session-actions">'
+    +'<button class="btn-blue btn-sm" data-t2dl="'+e.id+'">⬇ Re-télécharger</button>'
+    +'<button class="btn-red-ghost btn-sm" data-t2dels="'+e.id+'">Suppr.</button>'
+    +'</div></div>').join('');
+  el.querySelectorAll('[data-t2dl]').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      const exp=MEM.t2exp.find(e=>e.id===btn.dataset.t2dl);
+      if(!exp) return;
+      const snap=Array.isArray(exp.snapshot)?exp.snapshot:Object.values(exp.snapshot||{});
+      // Générer Excel depuis le snapshot
+      const headers=['DATE DE RECEPTION','N° SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N° DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
+      const dataRows=snap.map(r=>[dateFR(r.date_reception),weekNum(r.date_reception),r.code_barre||'',
+        r.produit||'',r.ref_produit||'',r.marque||'',r.annee||'',r.serie||'',r.etat||'',r.commentaire||'']);
+      const blob=await buildXlsx('Registre Entrées',headers,dataRows);
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);a.download=exp.filename;a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+      // Photos depuis Firebase si encore disponibles
+      const codes=new Set(snap.map(r=>r.code_barre));
+      const avecPhoto=MEM.t2.filter(r=>codes.has(r.code_barre)&&r.photo);
+      for(const r of avecPhoto){
+        const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+        if(!m) continue;
+        await new Promise(res=>setTimeout(res,300));
+        const ext=m[1].split('/')[1].replace('jpeg','jpg');
+        const ph=document.createElement('a');
+        ph.href=r.photo;ph.download=r.code_barre+'.'+ext;ph.click();
+      }
+      showMsg('t2Msg','✓ Re-téléchargé : '+snap.length+' colis'+(avecPhoto.length?' + '+avecPhoto.length+' photos':'')+'.','ok');
+    });
+  });
+  el.querySelectorAll('[data-t2dels]').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      if(!confirm('Supprimer cette session ?'))return;
+      await fb.t2ExpDelete(btn.dataset.t2dels);t2HistRenderSessions();
+    });
+  });
+}
+document.getElementById('t2BtnClearSessions')?.addEventListener('click',async()=>{
+  if(!confirm('Vider le log des sessions B+D ?'))return;
+  await fb.t2ExpClear();t2HistRenderSessions();
+});
 
 // ══════════════════════════════════════════════════════════════
 // ADMIN
