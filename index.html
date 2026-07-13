@@ -230,6 +230,22 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
 }
 .date-edit-box input[type=date]:focus{outline:none;border-color:var(--green);}
 .date-edit-footer{display:flex;gap:8px;justify-content:flex-end;}
+
+/* ── Recherche & Export T1 ── */
+.search-card{background:#fff;border:2px solid var(--ink);border-radius:10px;padding:18px;margin-bottom:18px;box-shadow:4px 4px 0 var(--ink);}
+.search-card h2{font-size:.95rem;font-weight:800;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+.search-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.search-field{display:flex;flex-direction:column;gap:4px;}
+.search-field label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b6456;}
+.search-field input{padding:9px 12px;border:2px solid var(--line);border-radius:6px;font-size:.9rem;font-family:inherit;background:var(--paper);}
+.search-field input:focus{outline:none;border-color:var(--green);}
+.search-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.search-results-header{display:flex;align-items:center;justify-content:space-between;margin:12px 0 8px;font-size:.78rem;color:#6b6456;}
+.search-results-header strong{color:var(--ink);}
+.result-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--green);border-radius:5px;margin-bottom:6px;font-size:.85rem;}
+.result-item .rc{font-family:var(--mono);font-weight:700;font-size:.88rem;}
+.result-item .rm{font-size:.72rem;color:#6b6456;margin-top:1px;}
+@media(max-width:520px){.search-row{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -322,9 +338,39 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
     <h2>Export Excel</h2>
     <p>2×/semaine. "Nouveaux" exporte les colis non encore envoyés et les marque. L'export est sauvegardé dans l'historique.</p>
     <div class="btns">
-      <button class="btn-amber" style="padding:11px 16px;font-size:.88rem;" id="t1BtnNew">⬇ Exporter les nouveaux</button>
+      <button class="btn-amber" style="padding:11px 16px;font-size:.88rem;" id="t1BtnNew">⬇ Nouveaux colis (depuis dernier export)</button>
       <button class="btn-ghost-light" id="t1BtnAll">Tout l'historique</button>
     </div>
+  </div>
+
+
+  <!-- Recherche & Export avancé -->
+  <div class="search-card">
+    <h2>🔍 Recherche &amp; Export</h2>
+    <div class="search-row">
+      <div class="search-field">
+        <label>Du</label>
+        <input type="date" id="t1SearchFrom">
+      </div>
+      <div class="search-field">
+        <label>Au</label>
+        <input type="date" id="t1SearchTo">
+      </div>
+    </div>
+    <div class="search-field">
+      <label>Code-barre (partiel ok)</label>
+      <input type="text" id="t1SearchCode" placeholder="SAV… ou PAD… ou partiel" autocorrect="off" autocapitalize="characters" spellcheck="false">
+    </div>
+    <div class="search-actions">
+      <button class="btn-green btn-sm" id="t1BtnSearch" style="padding:9px 16px;font-size:.88rem;">Rechercher</button>
+      <button class="btn-amber" id="t1BtnSearchExport" style="padding:9px 16px;font-size:.88rem;display:none;">⬇ Exporter la sélection</button>
+      <button class="btn-ghost btn-sm" id="t1BtnSearchClear">Effacer</button>
+    </div>
+    <div id="t1SearchResultsHeader" style="display:none;" class="search-results-header">
+      <span><strong id="t1SearchCount">0</strong> résultat(s)</span>
+      <span id="t1SearchPeriod" style="font-style:italic;"></span>
+    </div>
+    <div id="t1SearchResults"></div>
   </div>
 
   <div class="section-hd">
@@ -529,47 +575,52 @@ async function initFB(){
     if(!firebase.apps.length) firebase.initializeApp(FB_CFG);
     fbdb = firebase.database();
 
-    // Indicateur de connexion
-    fbdb.ref('.info/connected').on('value', snap=>{
+    // Connexion asynchrone — pas de timeout bloquant
+    fbdb.ref('.info/connected').on('value', async snap=>{
+      const wasOK = fbOK;
       fbOK = snap.val()===true;
       setConnUI(fbOK);
-    });
-
-    // Attendre la connexion (timeout 8s)
-    await new Promise((res,rej)=>{
-      const t=setTimeout(()=>rej(new Error('timeout')),8000);
-      fbdb.ref('.info/connected').once('value', snap=>{
-        if(snap.val()){ clearTimeout(t); res(); }
-        else{
-          fbdb.ref('.info/connected').on('value', function cb(s){
-            if(s.val()){ clearTimeout(t); fbdb.ref('.info/connected').off('value',cb); res(); }
-          });
+      if(fbOK && !wasOK){
+        // Première connexion : setup listeners + init users
+        setupFBListeners();
+        await initUsers();
+        // Si une session est en attente, tenter de la restaurer
+        if(!session){
+          const s=ssGet(LS_SESSION);
+          if(s){
+            const users=await fb.getUsers();
+            if(users.find(u=>u.id===s.id)){
+              session=s; ssSet(LS_SESSION,session); goHome();
+            }
+          }
         }
-      });
-    });
-
-    // Listeners temps réel
-    fbdb.ref('pem/t1').on('value', snap=>{
-      MEM.t1 = toArr(snap.val()).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
-      if(activeScreen()==='screenTool1') t1Render();
-      updateHomeStats();
-    });
-    fbdb.ref('pem/t1exp').on('value', snap=>{
-      MEM.t1exp = toArr(snap.val()).sort((a,b)=>(b._ts||0)-(a._ts||0));
-      if(activeScreen()==='screenTool1') t1Render();
-    });
-    fbdb.ref('pem/t2').on('value', snap=>{
-      MEM.t2 = toArr(snap.val()).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
-      if(activeScreen()==='screenTool2') t2Render();
-      updateHomeStats();
-      cleanOldPhotos();
+      }
     });
 
   }catch(e){
-    console.warn('Firebase non disponible:',e);
+    console.warn('Firebase init error:',e);
     fbOK=false; setConnUI(false);
   }
 }
+
+function setupFBListeners(){
+  fbdb.ref('pem/t1').on('value', snap=>{
+    MEM.t1=toArr(snap.val()).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+    if(activeScreen()==='screenTool1') t1Render();
+    updateHomeStats();
+  });
+  fbdb.ref('pem/t1exp').on('value', snap=>{
+    MEM.t1exp=toArr(snap.val()).sort((a,b)=>(b._ts||0)-(a._ts||0));
+    if(activeScreen()==='screenTool1') t1Render();
+  });
+  fbdb.ref('pem/t2').on('value', snap=>{
+    MEM.t2=toArr(snap.val()).sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+    if(activeScreen()==='screenTool2') t2Render();
+    updateHomeStats();
+    cleanOldPhotos();
+  });
+}
+
 
 function setConnUI(ok){
   const dot=document.getElementById('connDot');
@@ -694,7 +745,7 @@ async function doLogin(){
   const err=document.getElementById('loginErr');
   err.textContent='';
   if(!login||!pass){err.textContent='Identifiant et mot de passe requis.';return;}
-  if(!fbOK){err.textContent='Pas de connexion \u00e0 la base. V\u00e9rifier la connexion internet.';return;}
+  if(!fbOK){err.textContent='⏳ Connexion Firebase en cours… réessayez dans quelques secondes.';return;}
   const h=await hashPwd(pass);
   const users=await fb.getUsers();
   const user=users.find(u=>u.login===login&&u.hash===h);
@@ -920,7 +971,7 @@ function t1Render(){
     });
   }
 
-  const colEl=document.getElementById('t1ColisList'),recent=MEM.t1.slice(0,40);
+  const colEl=document.getElementById('t1ColisList'),recent=MEM.t1.slice(0,200);
   if(!recent.length){colEl.innerHTML='<div class="empty">Aucun colis scann\u00e9.</div>';return;}
   colEl.innerHTML=recent.map(r=>{
     const cls=r.exported?'entry done':'entry';
@@ -1035,6 +1086,82 @@ function setupT2Autocomplete(){
   }, true);
 }
 
+
+// ── RECHERCHE & EXPORT T1 ────────────────────────────────────
+let t1SearchData = [];
+
+function t1DoSearch(){
+  const from = document.getElementById('t1SearchFrom').value;
+  const to   = document.getElementById('t1SearchTo').value;
+  const code = document.getElementById('t1SearchCode').value.trim().toUpperCase();
+
+  let results = MEM.t1.slice();
+  if(from) results = results.filter(r => r.date_reception >= from);
+  if(to)   results = results.filter(r => r.date_reception <= to);
+  if(code) results = results.filter(r => (r.code_barre||'').toUpperCase().includes(code));
+
+  // Trier par date croissante
+  results.sort((a,b) => a.date_reception.localeCompare(b.date_reception));
+  t1SearchData = results;
+
+  const hdr = document.getElementById('t1SearchResultsHeader');
+  const cnt = document.getElementById('t1SearchCount');
+  const per = document.getElementById('t1SearchPeriod');
+  const res = document.getElementById('t1SearchResults');
+  const expBtn = document.getElementById('t1BtnSearchExport');
+
+  if(!from && !to && !code){
+    hdr.style.display='none'; res.innerHTML=''; expBtn.style.display='none'; return;
+  }
+
+  hdr.style.display='flex';
+  cnt.textContent = results.length;
+  per.textContent = (from||'…') + ' → ' + (to||'…') + (code ? ' · "' + code + '"' : '');
+  expBtn.style.display = results.length ? 'block' : 'none';
+
+  if(!results.length){
+    res.innerHTML='<div class="empty" style="padding:12px;">Aucun colis trouvé.</div>';
+    return;
+  }
+
+  res.innerHTML = results.slice(0,50).map(r =>
+    '<div class="result-item">'
+    + '<div><div class="rc">' + r.code_barre + '</div>'
+    + '<div class="rm">' + dateFR(r.date_reception)
+    + (r.commentaire ? ' · ' + r.commentaire : '')
+    + (r.exported ? ' · <span style="color:var(--blue)">exporté</span>' : ' · <span style="color:var(--amber)">en attente</span>')
+    + '</div></div></div>'
+  ).join('') + (results.length > 50 ? '<div style="font-size:.75rem;color:#9a937f;padding:8px 0;">+ ' + (results.length-50) + ' autres (export pour tout voir)</div>' : '');
+}
+
+document.getElementById('t1BtnSearch')?.addEventListener('click', t1DoSearch);
+document.getElementById('t1SearchCode')?.addEventListener('keydown', e => { if(e.key==='Enter') t1DoSearch(); });
+
+document.getElementById('t1BtnSearchClear')?.addEventListener('click', () => {
+  document.getElementById('t1SearchFrom').value = '';
+  document.getElementById('t1SearchTo').value = '';
+  document.getElementById('t1SearchCode').value = '';
+  document.getElementById('t1SearchResultsHeader').style.display = 'none';
+  document.getElementById('t1SearchResults').innerHTML = '';
+  document.getElementById('t1BtnSearchExport').style.display = 'none';
+  t1SearchData = [];
+});
+
+document.getElementById('t1BtnSearchExport')?.addEventListener('click', async () => {
+  if(!t1SearchData.length){ showMsg('t1Msg','Aucun résultat à exporter.','err'); return; }
+  const from = document.getElementById('t1SearchFrom').value;
+  const to   = document.getElementById('t1SearchTo').value;
+  const code = document.getElementById('t1SearchCode').value.trim();
+  const label = (from||'') + (from&&to?'_':'') + (to||'') + (code?'_'+code:'');
+  const fn = 'ENVIE ANJOU_' + (label || filenameDate()) + '.xls';
+  t1ToXLS(t1SearchData, fn);
+  // Sauvegarder dans l'historique
+  await fb.t1ExpInsert({id:uid(), filename:fn, date:nowFR(), count:t1SearchData.length,
+    snapshot: t1SearchData.map(r=>({date_reception:r.date_reception, code_barre:r.code_barre, commentaire:r.commentaire||''}))});
+  showMsg('t1Msg','✓ Export : ' + t1SearchData.length + ' colis.','ok');
+});
+
+
 // ══════════════════════════════════════════════════════════════
 // OUTIL 2 — RÉCEPTION COLIS BLACK+DECKER
 // ══════════════════════════════════════════════════════════════
@@ -1126,6 +1253,63 @@ document.getElementById('t2BtnSave')?.addEventListener('click',async()=>{
   t2Pending=null;t2Photo=null;t2Input.focus();
 });
 
+
+// ── GÉNÉRATEUR XLSX NATIF ────────────────────────────────────
+async function buildXlsx(sheetName, headers, rows){
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  const strs=[], idx={};
+  function si(s){ const k=String(s||''); if(!(k in idx)){idx[k]=strs.length;strs.push(k);} return idx[k]; }
+  const allRows=[headers,...rows];
+  const sheetRows=allRows.map((row,ri)=>{
+    const cells=row.map((cell,ci)=>{
+      const col=String.fromCharCode(65+ci)+(ri+1);
+      return '<c r="'+col+'" t="s"><v>'+si(cell)+'</v></c>';
+    }).join('');
+    return '<row r="'+(ri+1)+'">'+cells+'</row>';
+  }).join('');
+
+  const sstXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'+strs.length+'" uniqueCount="'+strs.length+'">'
+    +strs.map(s=>'<si><t xml:space="preserve">'+esc(s)+'</t></si>').join('')+'</sst>';
+
+  const sheetXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    +'<sheetData>'+sheetRows+'</sheetData></worksheet>';
+
+  const wbXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    +'<sheets><sheet name="'+esc(sheetName)+'" sheetId="1" r:id="rId1"/></sheets></workbook>';
+
+  const wbRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    +'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+    +'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>'
+    +'</Relationships>';
+
+  const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    +'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    +'<Default Extension="xml" ContentType="application/xml"/>'
+    +'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+    +'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+    +'<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>'
+    +'</Types>';
+
+  const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    +'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+    +'</Relationships>';
+
+  const z=new JSZip();
+  z.file('[Content_Types].xml',ct);
+  z.file('_rels/.rels',rels);
+  z.file('xl/workbook.xml',wbXml);
+  z.file('xl/_rels/workbook.xml.rels',wbRels);
+  z.file('xl/worksheets/sheet1.xml',sheetXml);
+  z.file('xl/sharedStrings.xml',sstXml);
+  return await z.generateAsync({type:'blob'});
+}
+
 function t2BuildXML(rows){
   const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hdr=['DATE DE RECEPTION','N\u00b0 SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT',
@@ -1166,20 +1350,31 @@ async function t2DoExport(all){
   const expMsg=document.getElementById('t2ExportMsg');
   expBtn.disabled=true;allBtn.disabled=true;expMsg.style.display='block';expMsg.textContent='Cr\u00e9ation du ZIP\u2026';
   try{
-    const zip=new JSZip();
-    const fname='ENVIE ANJOU_BLACK_DECKER_'+filenameDate();
-    zip.file(fname+'.xls',t2BuildXML(rows));
+    const outerZip=new JSZip();
+    const week=weekNum(todayISO());
+    const year=new Date().getFullYear();
+    const zipName='SEM'+week+' ANGERS MISE EN LIGNE';
+    const xlsxName=year+'_REGISTRE ANGERS ENTREES CDISCOUNT.xlsx';
+    // Générer le vrai .xlsx
+    const headers=['DATE DE RECEPTION','N° SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N° DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
+    const dataRows=rows.map(r=>[
+      dateFR(r.date_reception), weekNum(r.date_reception), r.code_barre||'',
+      r.produit||'', r.ref_produit||'', r.marque||'',
+      r.annee||'', r.serie||'', r.etat||'', r.commentaire||''
+    ]);
+    const xlsxBlob=await buildXlsx('Registre Entrées', headers, dataRows);
+    outerZip.file(xlsxName, xlsxBlob);
     let photoCount=0;
     rows.forEach(r=>{
       if(r.photo){
         const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-        if(m){const ext=m[1].split('/')[1].replace('jpeg','jpg');zip.file('photos/'+r.code_barre+'.'+ext,m[2],{base64:true});photoCount++;}
+        if(m){const ext=m[1].split('/')[1].replace('jpeg','jpg');outerZip.file(r.code_barre+'.'+ext,m[2],{base64:true});photoCount++;}
       }
     });
-    expMsg.textContent='G\u00e9n\u00e9ration ZIP ('+rows.length+' colis, '+photoCount+' photos)\u2026';
-    const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    expMsg.textContent='Génération ZIP ('+rows.length+' colis, '+photoCount+' photos)…';
+    const blob=await outerZip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
     const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);a.download=fname+'.zip';a.click();
+    a.href=URL.createObjectURL(blob);a.download=zipName+'.zip';a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),2000);
     if(!all){await Promise.all(rows.map(r=>fb.t2Update(r.id,{exported:true})));}
     showMsg('t2Msg','\u2713 ZIP export\u00e9 : '+rows.length+' colis, '+photoCount+' photos.','ok');
@@ -1279,47 +1474,43 @@ document.getElementById('btnLogout')?.addEventListener('click',doLogout);
 
 (async()=>{
   try{
-  console.log('INIT START');
-  t1Input=document.getElementById('t1Input');
-  t2Input=document.getElementById('t2Input');
-  setupT2Autocomplete();
-  if(t1Input){
-    let t1ScanTimer=null, t1LastKey=0, t1IsScanner=false;
-    t1Input.addEventListener('keydown',e=>{
-      const now=Date.now(), delta=now-t1LastKey; t1LastKey=now;
-      if(e.key==='Enter'){e.preventDefault();clearTimeout(t1ScanTimer);t1HandleCode(t1Input.value);return;}
-      t1IsScanner = (delta>0 && delta<60);
-    });
-    t1Input.addEventListener('input',()=>{
-      clearTimeout(t1ScanTimer);
-      if(t1Input.value.length>=3){
-        if(t1IsScanner) t1ScanTimer=setTimeout(()=>t1HandleCode(t1Input.value),400);
-      }
-    });
+    console.log('INIT START');
+    t1Input=document.getElementById('t1Input');
+    t2Input=document.getElementById('t2Input');
+    setupT2Autocomplete();
+    // Attacher les listeners scanner T1/T2
+    if(t1Input){
+      let t1ScanTimer=null,t1LastKey=0,t1IsScanner=false;
+      t1Input.addEventListener('keydown',e=>{
+        const now=Date.now(),delta=now-t1LastKey;t1LastKey=now;
+        if(e.key==='Enter'){e.preventDefault();clearTimeout(t1ScanTimer);t1HandleCode(t1Input.value);return;}
+        t1IsScanner=(delta>0&&delta<60);
+      });
+      t1Input.addEventListener('input',()=>{
+        clearTimeout(t1ScanTimer);
+        if(t1Input.value.length>=3&&t1IsScanner)
+          t1ScanTimer=setTimeout(()=>t1HandleCode(t1Input.value),400);
+      });
+    }
+    if(t2Input){
+      let t2ScanTimer=null,t2LastKey=0,t2IsScanner=false;
+      t2Input.addEventListener('keydown',e=>{
+        const now=Date.now(),delta=now-t2LastKey;t2LastKey=now;
+        if(e.key==='Enter'){e.preventDefault();clearTimeout(t2ScanTimer);t2HandleCode(t2Input.value);return;}
+        t2IsScanner=(delta>0&&delta<60);
+      });
+      t2Input.addEventListener('input',()=>{
+        clearTimeout(t2ScanTimer);
+        if(t2Input.value.length>=3&&t2IsScanner)
+          t2ScanTimer=setTimeout(()=>t2HandleCode(t2Input.value),400);
+      });
+    }
+    showScreen('screenLogin');
+    await initFB(); // non-bloquant — connexion en arrière-plan
+  }catch(e){
+    console.error('Init error:',e);
+    showScreen('screenLogin');
   }
-  if(t2Input){
-    let t2ScanTimer=null, t2LastKey=0, t2IsScanner=false;
-    t2Input.addEventListener('keydown',e=>{
-      const now=Date.now(), delta=now-t2LastKey; t2LastKey=now;
-      if(e.key==='Enter'){e.preventDefault();clearTimeout(t2ScanTimer);t2HandleCode(t2Input.value);return;}
-      t2IsScanner = delta < 60;
-    });
-    t2Input.addEventListener('input',()=>{
-      clearTimeout(t2ScanTimer);
-      if(t2IsScanner && t2Input.value.length>=3)
-        t2ScanTimer=setTimeout(()=>t2HandleCode(t2Input.value),400);
-    });
-  }
-  showScreen('screenLogin');
-  await initFB();
-  await initUsers();
-  session=ssGet(LS_SESSION);
-  if(session){
-    const users=await fb.getUsers();
-    if(users.find(u=>u.id===session.id)){goHome();return;}
-  }
-  showScreen('screenLogin');
-  }catch(e){console.error('Init error:',e);document.getElementById('screenLogin').classList.add('active');}
 })();
 </script>
 </body>
