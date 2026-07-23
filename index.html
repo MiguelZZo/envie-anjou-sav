@@ -1443,78 +1443,78 @@ function t2BuildXML(rows){
 async function t2DoExportFromSelection(rows){
   if(!rows.length) return;
   const year=new Date().getFullYear();
+  const week=weekNum(todayISO());
+  const folderName='SEM'+week+' ANGERS MISE EN LIGNE';
   const xlsxName=year+'_REGISTRE ANGERS ENTREES CDISCOUNT.xlsx';
-  const headers=['DATE DE RECEPTION','N° SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N° DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
+  const headers=['DATE DE RECEPTION','N\u00b0 SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N\u00b0 DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
   const dataRows=rows.map(r=>[
     dateFR(r.date_reception),weekNum(r.date_reception),r.code_barre||'',
     r.produit||'',r.ref_produit||'',r.marque||'',r.annee||'',r.serie||'',r.etat||'',r.commentaire||''
   ]);
-  // 1. Télécharger le fichier Excel
-  const xlsxBlob=await buildXlsx('Registre Entrées',headers,dataRows);
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(xlsxBlob);
-  a.download=xlsxName; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  // 2. Télécharger les photos une par une (avec délai)
-  const photos=rows.filter(r=>r.photo);
+  const xlsxBlob=await buildXlsx('Registre Entr\u00e9es',headers,dataRows);
+  const zip=new JSZip();
+  const folder=zip.folder(folderName);
+  folder.file(xlsxName,xlsxBlob);
   let photoCount=0;
-  for(const r of photos){
-    const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.*)$/);
-    if(!m) continue;
-    await new Promise(res=>setTimeout(res,300));
-    const ext=m[1].split('/')[1].replace('jpeg','jpg');
-    const ph=document.createElement('a');
-    ph.href=r.photo;
-    ph.download=r.code_barre+'.'+ext;
-    ph.click();
-    photoCount++;
+  for(const r of rows){
+    if(r.photo){
+      const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+      if(m){const ext=m[1].split('/')[1].replace('jpeg','jpg');folder.file(r.code_barre+'.'+ext,m[2],{base64:true});photoCount++;}
+    }
   }
+  const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=folderName+'.zip';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   await fb.t2ExpInsert({id:uid(),filename:xlsxName,date:nowFR(),count:rows.length,
     snapshot:rows.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre,
       produit:r.produit||'',ref_produit:r.ref_produit||'',marque:r.marque||'',
       annee:r.annee||'',serie:r.serie||'',etat:r.etat||'',commentaire:r.commentaire||''}))});
-  showMsg('t2Msg','✓ Export : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
+  showMsg('t2Msg','\u2713 Export\u00e9 : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
 }
 
 async function t2DoExport(all){
   const rows=all
     ?MEM.t2.slice().sort((a,b)=>a.date_reception.localeCompare(b.date_reception))
     :MEM.t2.filter(r=>!r.exported).sort((a,b)=>a.date_reception.localeCompare(b.date_reception));
-  if(!rows.length){showMsg('t2Msg','Aucun colis à exporter.','err');return;}
-  const expBtn=document.getElementById('t2BtnExport'),allBtn=document.getElementById('t2BtnAll');
+  if(!rows.length){showMsg('t2Msg','Aucun colis \u00e0 exporter.','err');return;}
+  const expBtn=document.getElementById('t2BtnExport');
   const expMsg=document.getElementById('t2ExportMsg');
   if(expBtn) expBtn.disabled=true;
-  if(expMsg){expMsg.style.display='block';expMsg.textContent='Génération Excel…';}
+  if(expMsg){expMsg.style.display='block';expMsg.textContent='Pr\u00e9paration du fichier ZIP\u2026';}
   try{
     const year=new Date().getFullYear();
+    const week=weekNum(todayISO());
+    const folderName='SEM'+week+' ANGERS MISE EN LIGNE';
     const xlsxName=year+'_REGISTRE ANGERS ENTREES CDISCOUNT.xlsx';
-    const headers=['DATE DE RECEPTION','N° SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N° DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
+    const headers=['DATE DE RECEPTION','N\u00b0 SEMAINE','REF CLIENT','APPELLATION PRODUIT','REFERENCE PRODUIT','MARQUE','ANNEE DE FABRICATION','N\u00b0 DE SERIE','ETAT','COMMENTAIRE C DISCOUNT'];
     const dataRows=rows.map(r=>[
       dateFR(r.date_reception),weekNum(r.date_reception),r.code_barre||'',
       r.produit||'',r.ref_produit||'',r.marque||'',r.annee||'',r.serie||'',r.etat||'',r.commentaire||''
     ]);
-    const xlsxBlob=await buildXlsx('Registre Entrées',headers,dataRows);
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(xlsxBlob);a.download=xlsxName;a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-    const photos=rows.filter(r=>r.photo);
+    if(expMsg) expMsg.textContent='G\u00e9n\u00e9ration Excel\u2026';
+    const xlsxBlob=await buildXlsx('Registre Entr\u00e9es',headers,dataRows);
+    const zip=new JSZip();
+    const folder=zip.folder(folderName);
+    folder.file(xlsxName,xlsxBlob);
     let photoCount=0;
-    if(photos.length && expMsg) expMsg.textContent='Téléchargement photos ('+photos.length+')…';
-    for(const r of photos){
-      const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.*)$/);
-      if(!m) continue;
-      await new Promise(res=>setTimeout(res,300));
-      const ext=m[1].split('/')[1].replace('jpeg','jpg');
-      const ph=document.createElement('a');
-      ph.href=r.photo;ph.download=r.code_barre+'.'+ext;ph.click();
-      photoCount++;
-    }
+    rows.forEach(r=>{
+      if(r.photo){
+        const m=r.photo.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+        if(m){const ext=m[1].split('/')[1].replace('jpeg','jpg');folder.file(r.code_barre+'.'+ext,m[2],{base64:true});photoCount++;}
+      }
+    });
+    if(expMsg) expMsg.textContent='Compression ZIP ('+rows.length+' colis, '+photoCount+' photos)\u2026';
+    const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=folderName+'.zip';a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
     if(!all){await Promise.all(rows.map(r=>fb.t2Update(r.id,{exported:true})));}
     await fb.t2ExpInsert({id:uid(),filename:xlsxName,date:nowFR(),count:rows.length,
       snapshot:rows.map(r=>({date_reception:r.date_reception,code_barre:r.code_barre,
         produit:r.produit||'',ref_produit:r.ref_produit||'',marque:r.marque||'',
         annee:r.annee||'',serie:r.serie||'',etat:r.etat||'',commentaire:r.commentaire||''}))});
-    showMsg('t2Msg','✓ Exporté : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
+    showMsg('t2Msg','\u2713 ZIP : '+rows.length+' colis'+(photoCount?' + '+photoCount+' photos':'')+'.','ok');
     if(expMsg) expMsg.style.display='none';
   }catch(err){
     showMsg('t2Msg','Erreur : '+err.message,'err');
