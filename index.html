@@ -335,7 +335,7 @@ footer{text-align:center;font-size:.66rem;color:#9a937f;padding:18px 0 8px;}
   <div class="card">
     <div class="lbl">Scanner ou saisir le code-barre</div>
     <input type="text" id="t1Input" class="scan-input" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="SAV… ou PAD…">
-    <div class="hint">Code commençant par <strong>SAV</strong> ou <strong>PAD</strong>. Douchette : scanner → auto. Clavier : saisir + Entrée.</div>
+    <div class="hint">Code commençant par <strong>SAV</strong>, <strong>PAD</strong> ou <strong>NA</strong>. Douchette : scanner → auto. Clavier : saisir + Entrée.</div>
     <div id="t1DupWarn" class="dup-warn">
       <strong>⚠️ Code déjà scanné : <span id="t1DupCode"></span></strong>
       <div style="font-size:.78rem;color:#7a4e1a;margin-top:3px;">Scanné le <span id="t1DupDate"></span>. Enregistrer quand même ?</div>
@@ -886,11 +886,28 @@ function openDateEdit(id, tool, code, currentDate, currentComment){
     commentWrap.style.display='block';
     const sel=document.getElementById('dateEditComment');
     const autre=document.getElementById('dateEditCommentAutre');
-    const known=['Accessoire seul','Colis vide','Mauvais produit'];
+    const needsText=v=>v!==''&&v!=='Colis vide';
     if(!currentComment){ sel.value=''; autre.style.display='none'; autre.value=''; }
-    else if(known.includes(currentComment)){ sel.value=currentComment; autre.style.display='none'; autre.value=''; }
+    else if(currentComment==='Colis vide'){ sel.value='Colis vide'; autre.style.display='none'; autre.value=''; }
+    else if(currentComment==='Accessoire seul'||currentComment==='Mauvais produit'){
+      sel.value=currentComment; autre.style.display='block';
+      autre.placeholder='D\u00e9tailler (obligatoire)'; autre.value=''; }
+    else if(['Accessoire seul','Mauvais produit'].some(v=>currentComment.startsWith(v+' '))){
+      const base=currentComment.split(' ')[0]+' '+currentComment.split(' ')[1];
+      const matched=['Accessoire seul','Mauvais produit'].find(v=>currentComment.startsWith(v));
+      if(matched){ sel.value=matched; autre.style.display='block';
+        autre.placeholder='D\u00e9tailler (obligatoire)'; autre.value=currentComment.slice(matched.length).trim(); }
+      else { sel.value='Autre'; autre.style.display='block'; autre.value=currentComment; }
+    }
     else { sel.value='Autre'; autre.style.display='block'; autre.value=currentComment||''; }
-    sel.onchange=function(){ autre.style.display=this.value==='Autre'?'block':'none'; if(this.value!=='Autre') autre.value=''; };
+    sel.onchange=function(){
+      if(needsText(this.value)){
+        autre.style.display='block';
+        autre.placeholder=this.value==='Autre'?'Pr\u00e9ciser...':'D\u00e9tailler (obligatoire)';
+      } else {
+        autre.style.display='none'; autre.value='';
+      }
+    };
   } else {
     commentWrap.style.display='none';
   }
@@ -910,7 +927,14 @@ document.getElementById('dateEditSave')?.addEventListener('click',async()=>{
   if(dateEditTool==='t1'){
     const sel=document.getElementById('dateEditComment');
     const autre=document.getElementById('dateEditCommentAutre');
-    const comment=sel.value==='Autre'?autre.value.trim():sel.value;
+    const needsTextSave=s=>s!==''&&s!=='Colis vide';
+    if(needsTextSave(sel.value)&&!autre.value.trim()){
+      autre.style.border='2px solid var(--red)';
+      autre.placeholder='Obligatoire !';
+      autre.focus(); return;
+    }
+    autre.style.border='';
+    const comment=needsTextSave(sel.value)?(sel.value+' '+autre.value.trim()).trim():sel.value;
     await fb.t1Update(dateEditId,{date_reception:newDate, commentaire:comment});
   } else {
     await fb.t2Update(dateEditId,{date_reception:newDate});
@@ -930,8 +954,8 @@ let t1Pending=null;
 function t1HandleCode(raw){
   const code=raw.trim().toUpperCase();
   if(!code){t1Input.value='';return;}
-  if(!code.startsWith('SAV')&&!code.startsWith('PAD')){
-    showMsg('t1Msg','\u26d4 Refus\u00e9 \u2014 doit commencer par SAV ou PAD : "'+code+'"','err');
+  if(!code.startsWith('SAV')&&!code.startsWith('PAD')&&!code.startsWith('NA')){
+    showMsg('t1Msg','\u26d4 Refus\u00e9 \u2014 doit commencer par SAV, PAD ou NA : "'+code+'"','err');
     beep(false);t1Input.value='';t1Input.focus();return;
   }
   const dup=MEM.t1.find(r=>r.code_barre===code);
@@ -1272,7 +1296,7 @@ function t2HandleCode(raw){
   const code=raw.trim().toUpperCase();
   if(!code){t2Input.value='';return;}
   if(!code.startsWith('SAV')&&!code.startsWith('PAD')){
-    showMsg('t2Msg','\u26d4 Refus\u00e9 \u2014 doit commencer par SAV ou PAD : "'+code+'"','err');
+    showMsg('t2Msg','\u26d4 Refus\u00e9 \u2014 doit commencer par SAV, PAD ou NA : "'+code+'"','err');
     beep(false);t2Input.value='';t2Input.focus();return;
   }
   const dup=MEM.t2.find(r=>r.code_barre===code);
